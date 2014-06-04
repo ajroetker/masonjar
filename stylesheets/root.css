@@ -1,0 +1,25 @@
+html {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: none;
+}
+#body {
+    font-family: sans-serif;
+}
+#heading {
+    font-size: 150%;
+    color: #104;
+}
+#in {
+    margin: 0 auto;
+    padding: 4px 0;
+}
+#in input {
+    width: 235px;
+}
+#log div {
+    padding: 4px;
+}
+#log {
+    height: 200px;
+    overflow: scroll;
+}

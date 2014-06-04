@@ -1,0 +1,115 @@
+<!-- vim: set sw=2 sts=2 et tw=80 : -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="shortcut icon" href="/ico/favicon.ico">
+
+    <title>Cover Template for Bootstrap</title>
+
+    <!-- Latest compiled and minified Boostrap core CSS -->
+    <link rel="stylesheet"
+    href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+
+    <!-- Custom styles for this template -->
+    <link href="/stylesheets/root.css" rel="stylesheet">
+    <link href="/stylesheets/cover.css" rel="stylesheet">
+
+    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+      <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+  </head>
+
+  <body>
+
+    <div class="site-wrapper">
+
+      <div class="site-wrapper-inner">
+
+        <div class="cover-container">
+
+          <div class="masthead clearfix">
+            <div class="inner">
+              <h3 class="masthead-brand">Cover - with Cuddle</h3>
+              <ul class="nav masthead-nav">
+                <li class="active"><a href="#">Home</a></li>
+                <li><a href="#">Features</a></li>
+                <li><a href="#">Contact</a></li>
+                <li><a href="{{html .Logout}}">Logout</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="row">
+          <div class="inner cover col-sm-8">
+
+            <h4 class="cover-heading">{{html .Room}}</h4>
+            <div id="body">
+              <div id="in" class="input-group"><input type="text" class="form-control"></div>
+              <div id="log"></div>
+            </div><!-- /.chat-body -->
+          </div>
+          <div id="players" class="inner cover col-sm-3 col-sm-offset-1">
+            <h4 class="sidebar-heading">Current Players</h4>
+            {{.Players}}
+          </div><!-- /.players -->
+          </div><!-- /.row -->
+
+
+          <div class="row">
+            <p class="lead">Cover is a one-page template for building simple and beautiful home pages. Download, edit the text, and add your own fullscreen background photo to make it your own.</p>
+            <p class="lead">
+              <a href="#" class="btn btn-lg btn-default">Learn more</a>
+            </p>
+          </div><!-- /.row -->
+          <div class="mastfoot">
+            <div class="inner">
+              <p>Cover template for <a href="http://getbootstrap.com">Bootstrap</a>, by <a href="https://twitter.com/mdo">@mdo</a>.</p>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Bootstrap core JavaScript
+    ================================================== -->
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <script src="/_ah/channel/jsapi"></script>
+    <script>
+        $(function() {
+            var room = '{{js .Room}}';
+            var token = '{{js .Token}}';
+
+            var chan = new goog.appengine.Channel(token);
+            var sock = chan.open();
+            sock.onmessage = function(msg) {
+              $("#log").prepend($('<div />').text(msg.data));
+            }
+
+            var $in = $('#in input').focus();
+            $in.keypress(function(e) {
+                if (e.which != 13 && e.which != 10) {
+                  return;
+                } else {
+                  e.preventDefault();
+                  var msg = $in.val();
+                  $in.val('');
+                  $.ajax('/post', {data: {room: room, msg: msg}});
+                }
+            });
+        });
+    </script>
+  </body>
+</html>
