@@ -10,6 +10,12 @@ handlers:
 - url: /js
   static_dir: js
 
+- url: /fonts
+  static_dir: fonts
+
+- url: /img
+  static_dir: img
+
 - url: /.*
   script: _go_app
   login: required

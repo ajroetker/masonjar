@@ -36,8 +36,7 @@
 
           <div class="masthead clearfix">
             <div class="inner">
-              <h3 class="masthead-brand"><img src="/img/masonjar.png" alt="Mason Jar"
-              height="15px" width="10px"> - MasonJar</h3>
+              <h3 class="masthead-brand">Cover - with Cuddle</h3>
               <ul class="nav masthead-nav">
                 <li class="active"><a href="/">Home</a></li>
                 <li><a href="#">Features</a></li>
@@ -50,22 +49,24 @@
           <div class="row">
             <div class="inner cover col-sm-7">
 
-              <h4 class="cover-heading">{{html .Game}}</h4>
+              <h4 class="cover-heading">Name of the game?</h4>
               <div id="body">
                 <div id="in" class="input-group"><input type="text" class="form-control"></div>
                 <div id="log"></div>
               </div><!-- /.chat-body -->
             </div>
             <div id="players-table" class="inner cover col-sm-4 col-sm-offset-1">
-              <h4 class="sidebar-heading">Current Players</h4>
+              <h4 class="sidebar-heading">Current Games - <a
+                  href="#">Refresh</a></h4>
               <table id="info-table" class="table table-condensed">
                 <thead>
                   <th>Name</th>
-                  <th>Ready</th>
+                  <th>Status</th>
+                  <th>#</th>
                   <th>Quit</th>
                 </thead>
-                <tbody id="players" style="color:black;">
-                {{ .Players }}
+                <tbody style="color:black;">
+                {{ .Games }}
                 </tbody>
               </table>
             </div><!-- /.players-table -->
@@ -100,30 +101,6 @@
     <script src="/_ah/channel/jsapi"></script>
     <script>
         $(function() {
-            var game = '{{js .Game}}';
-            var token = '{{js .Token}}';
-
-            var chan = new goog.appengine.Channel(token);
-            var sock = chan.open();
-            sock.onmessage = function(msg) {
-              var message = JSON.parse(msg.data);
-              if (message.Text) { $("#log").prepend($('<div />').text(message.Text)) };
-              var html = '<tbody id="players" style="color:black;" class="table table-centered">';
-              var loc  = window.location.href;
-              $.each( message.Players, function( index, player ) {
-                html += '<tr class=active><td>' + player.Name +
-                '</td><td><a href="#"><span style="color:black;"' +
-                'class="glyphicon glyphicon-ok"></span></a></td>' +
-                '<td><a href="/leave/' +
-                loc.substring(loc.lastIndexOf('/') + 1) +
-                '"><span style="color:black;" class="glyphicon ' +
-                'glyphicon-remove"></span></a></td></tr>';
-              });
-              html += '</tbody>';
-              console.log(html);
-              $("#players").replaceWith(html);
-            }
-
             var $in = $('#in input').focus();
             $in.keypress(function(e) {
                 if (e.which != 13 && e.which != 10) {
@@ -131,8 +108,10 @@
                 } else {
                   e.preventDefault();
                   var msg = $in.val();
-                  $in.val('');
-                  $.ajax('/post', {data: {game: game, msg: msg}});
+                  if (msg.length > 0) {
+                    $in.val('');
+                    window.location.href = "/create/" + msg;
+                  }
                 }
             });
         });

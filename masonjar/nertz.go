@@ -54,6 +54,7 @@ func (g *Game) AddPlayer(c appengine.Context, id string) (string, error) {
     return channel.Create(c, id)
 }
 
+//TODO run this in a transaction?
 // AddClient puts a Client record to the datastore with the Room as its
 // parent, creates a channel and returns the channel token.
 func (g *Game) RemovePlayer(c appengine.Context, id string) error {
@@ -94,7 +95,14 @@ func (g *Game) GetPlayers(c appengine.Context) ( []Player, error ) {
     return clients, nil
 }
 
-func (g *Game) Send(c appengine.Context, message string) error {
+type Message struct{
+    Lake []Card
+    Players []Player
+    Error string
+    Text string
+}
+
+func (g *Game) Send(c appengine.Context, message Message) error {
     var clients []Player
 
     _, err := memcache.JSON.Get(c, g.Id, &clients)
@@ -117,13 +125,23 @@ func (g *Game) Send(c appengine.Context, message string) error {
     }
 
     for _, client := range clients {
-        err = channel.Send(c, client.Name, message)
+        err = channel.SendJSON(c, client.Name, message)
         if err != nil {
             c.Errorf("sending %q: %v", message, err)
         }
     }
 
     return nil
+}
+
+func (game *Game) remove(c appengine.Context) error {
+
+    // Purge the now-invalid cache record (if it exists).
+    err := memcache.Delete(c, "games")
+    if err != nil {
+        return err
+    }
+    return datastore.Delete(c, game.Key(c))
 }
 
 // getRoom fetches a Room by name from the datastore,
@@ -139,8 +157,37 @@ func getGame(c appengine.Context, id string) (*Game, error) {
         return err
     }
 
+    // Purge the now-invalid cache record (if it exists).
+    memcache.Delete(c, "games")
+
     // datastore.RunInTransaction prevents a race condition
     // where two requests might try to make a room that both
     // to not exist. The failed transaction retries.
     return game, datastore.RunInTransaction(c, fn, nil)
+}
+
+func getAllGames(c appengine.Context) ([]Game, error) {
+    var games []Game
+
+    memcache.Delete(c, "games")
+    _, err := memcache.JSON.Get(c, "games", &games)
+    if err != nil && err != memcache.ErrCacheMiss {
+        return nil, err
+    }
+
+    if err == memcache.ErrCacheMiss {
+        q := datastore.NewQuery("Game")
+        _, err = q.GetAll(c, &games)
+        if err != nil {
+            return nil, err
+        }
+        err = memcache.JSON.Set(c, &memcache.Item{
+            Key: "games", Object: games,
+        })
+        if err != nil {
+            return nil, err
+        }
+    }
+
+    return games, nil
 }
