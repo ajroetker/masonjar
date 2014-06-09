@@ -1,0 +1,50 @@
+package terminal
+
+import "fmt"
+
+const (
+    // Terminal colors and special characters
+    // set to red
+    SHRED      = "\x1b\x5b\x33\x31\x6d"
+    // set to black
+    SHBLACK    = "\x1b\x5b\x33\x30\x6d"
+    // set to the default color
+    SHDEFAULT  = "\x1b\x5b\x33\x39\x6d"
+    // set background to white
+    SHBWHITE   = "\x1b\x5b\x34\x37\x6d"
+    // return background to default color
+    SHBDEFAULT = "\x1b\x5b\x34\x39\x6d"
+    SHSPADES   = "\xE2\x99\xA0"
+    SHHEARTS   = "\xE2\x99\xA5"
+    SHCLUBS    = "\xE2\x99\xA3"
+    SHDIAMONDS = "\xE2\x99\xA6"
+)
+
+func ChangeSHColor( s string, colorsh string ) string {
+    // Expects colorsh to be a UNIX shell color
+    return fmt.Sprintf("%v%v%v", colorsh, s, SHDEFAULT);
+}
+
+func NewShuffledDeck( name string ) <-chan Card {
+    /* Generates a Deck as a process by creating an 'out' channel
+    upon which the user of the Deck must input Cards */
+    out := make(chan Card)
+    go func() {
+
+        // This is the Knuth Shuffle
+        deck := make( []int , 52)
+        for i := range deck {
+            deck[i] = i
+        }
+        for i := 51; i > 0; i-- {
+            r := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
+            j := r.Intn(i+1)
+            suit  := j / 13
+            value := j / suit
+            out <- Card{ value, suit, name, }
+            deck[j] = deck[i]
+        }
+        close(out)
+    }()
+    return out
+}

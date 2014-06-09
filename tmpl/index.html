@@ -37,7 +37,7 @@
           <div class="masthead clearfix">
             <div class="inner">
               <h3 class="masthead-brand"><img src="/img/masonjar.png" alt="Mason Jar"
-              height="15px" width="10px"> - MasonJar</h3>
+              height="55px" width="50px"> - MasonJar</h3>
               <ul class="nav masthead-nav">
                 <li class="active"><a href="/">Home</a></li>
                 <li><a href="#">Features</a></li>
@@ -48,37 +48,64 @@
           </div>
 
           <div class="row">
-            <div class="inner cover col-sm-7">
+            {{if .Game}}
+            <h2 style="text-align:center;" class="cover-heading">Waiting room: {{html .PageName}}</h2>
+            <div class="row" >
+              <div class="inner cover col-lg-12">
+                <canvas id="myCanvas" width="540px" height="250px"></canvas>
+              </div>
+              <img style="display:none;" id="hearts"
+              src="/img/7-of-hearts.png" >
+            </div>
+            {{else}}
+            <h2 style="text-align:center;" class="cover-heading">{{html .PageName}}</h2>
+            {{end}}
+            <div class="inner cover col-sm-6">
 
-              <h4 class="cover-heading">{{html .Game}}</h4>
               <div id="body">
-                <div id="in" class="input-group"><input type="text" class="form-control"></div>
-                <div id="log"></div>
+                  {{if .Game | not}}
+                  <div id="in" class="input-group">
+                  <span class="input-group-addon">Create:</span>
+                  <input type="text" class="form-control" placeholder="game's name"></div>
+                  {{else}}
+                  <div id="in" class="input-group">
+                  <h4 style="text-align: left;">Chat:</h4>
+                  <input type="text" class="form-control"></div>
+                  <div id="log" style="font-size: 12pt;"></div>
+                  {{end}}
               </div><!-- /.chat-body -->
             </div>
-            <div id="players-table" class="inner cover col-sm-4 col-sm-offset-1">
-              <h4 class="sidebar-heading">Current Players</h4>
-              <table id="info-table" class="table table-condensed">
-                <thead>
-                  <th>Name</th>
-                  <th>Ready</th>
-                  <th>Quit</th>
-                </thead>
-                <tbody id="players" style="color:black;">
-                {{ .Players }}
-                </tbody>
-              </table>
+            {{define "table"}}
+            <div id="players-table" class="inner cover col-sm-6">
+              <h4 class="sidebar-heading">{{html .Name}}</h4>
+              <div id="info-table">
+                <table class="table table-condensed">
+                  <thead>
+                    {{range .Headers}}
+                    {{.}}
+                    {{end}}
+                  </thead>
+                  <tbody id="players" style="color:black;">
+                  {{range .Body}}
+                  {{.}}
+                  {{end}}
+                  </tbody>
+                </table>
+              </div><!-- /.info-table -->
             </div><!-- /.players-table -->
+            {{end}}
+            {{template "table" .TableData}}
           </div><!-- /.row -->
 
 
+          {{if .Game}}
           <div class="row">
-            <p class="lead">This is a game registry for nertz. Soon you will be
-            able to start, stop and play games as you please.</p>
             <p class="lead">
-              <a href="#" class="btn btn-lg btn-default">Learn more</a>
+            <a href="#" class="btn btn-lg btn-default">Ready</a>
+            <a href="/leave/{{html .Game}}" class="btn btn-lg btn-default">Quit</a>
             </p>
           </div><!-- /.row -->
+          {{end}}
           <div class="mastfoot">
             <div class="inner">
               <p>Cover template for <a href="http://getbootstrap.com">Bootstrap</a>, by <a href="https://twitter.com/mdo">@mdo</a>.</p>
@@ -97,7 +124,13 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
     <!-- Latest compiled and minified JavaScript -->
     <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <!-- Load the Paper.js library -->
+    <script type="text/javascript" src="/js/paper-full.js"></script>
+    <!-- Define inlined PaperScript associate it with myCanvas -->
+    <script type="text/paperscript" src="/js/myScript.js" canvas="myCanvas"></script>
+
     <script src="/_ah/channel/jsapi"></script>
+    {{if .Game}}
     <script>
         $(function() {
             var game = '{{js .Game}}';
@@ -113,14 +146,9 @@
               $.each( message.Players, function( index, player ) {
                 html += '<tr class=active><td>' + player.Name +
                 '</td><td><a href="#"><span style="color:black;"' +
-                'class="glyphicon glyphicon-ok"></span></a></td>' +
-                '<td><a href="/leave/' +
-                loc.substring(loc.lastIndexOf('/') + 1) +
-                '"><span style="color:black;" class="glyphicon ' +
-                'glyphicon-remove"></span></a></td></tr>';
+                'class="glyphicon glyphicon-ok"></span></a></td></tr>';
               });
               html += '</tbody>';
-              console.log(html);
               $("#players").replaceWith(html);
             }
 
@@ -137,5 +165,24 @@
             });
         });
     </script>
+    {{else}}
+    <script>
+        $(function() {
+            var $in = $('#in input').focus();
+            $in.keypress(function(e) {
+                if (e.which != 13 && e.which != 10) {
+                  return;
+                } else {
+                  e.preventDefault();
+                  var msg = $in.val();
+                  if (msg.length > 0) {
+                    $in.val('');
+                    window.location.href = "/create/" + msg;
+                  }
+                }
+            });
+        });
+    </script>
+    {{end}}
   </body>
 </html>

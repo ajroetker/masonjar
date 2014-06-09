@@ -8,7 +8,20 @@ import (
     "html/template"
     "fmt"
     "time"
+    "strings"
 )
+
+type tmplData struct{
+    PageName, Logout string
+    TableData interface{}
+    Game, Token string
+}
+
+type TableData struct{
+    Name string
+    Headers []template.HTML
+    Body interface{}
+}
 
 func init() {
     // Register our handlers with the http package.
@@ -22,7 +35,6 @@ func init() {
 
 // HTML template.
 var tmpl = template.Must(template.ParseFiles("tmpl/index.html"))
-var roottmpl = template.Must(template.ParseFiles("tmpl/root.html"))
 
 // start is an HTTP handler that joins or creates a Game,
 // creates a new Client, and writes the HTML response.
@@ -36,9 +48,14 @@ func root(w http.ResponseWriter, r *http.Request) {
     }
 
     // Create a list of games to display
-    games, _ := getAllGames(c)
-    htmlgames := ""
-    for _, game := range games {
+    games, err := getAllGames(c)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+
+    htmlgames := make([]template.HTML, len(games))
+    for index, game := range games {
         var mark, status, quit, leave string
         if game.Status == 0 {
             mark = "ok"
@@ -55,15 +72,26 @@ func root(w http.ResponseWriter, r *http.Request) {
             quit = "remove-sign"
             leave = "leave"
         }
-        htmlgames = fmt.Sprintf(`%v<tr class="%v"><td><a style="color:black;" href="/start/%v">%v</a></td><td>
-          <span class="glyphicon glyphicon-%v"></span></td><td>%v</td>
-          <td><a style="color:black;" href="/%v/%v"><span class="glyphicon glyphicon-%v"></span></a></td></tr>`,
-          htmlgames, status, game.Id, game.Id, mark, len(players), leave, game.Id, quit)
+        htmlgames[index] = template.HTML(fmt.Sprintf(`<tr class="%v">
+        <td><a style="color:black;" href="/start/%v">%v</a></td><td>
+        <span class="glyphicon glyphicon-%v"></span></td><td>%v</td>
+        <td><a style="color:black;" href="/%v/%v"><span class="glyphicon glyphicon-%v"></span></a></td></tr>`,
+          status, game.Id, game.Id, mark, len(players), leave, game.Id, quit))
     }
 
     // Render the HTML template
-    data := struct{ Logout string; Games template.HTML }{ url, template.HTML(htmlgames) }
-    err = roottmpl.Execute(w, data)
+    data := tmplData{
+        "Welcome to MasonJar!", url,
+        TableData{
+            "Current Games",
+            []template.HTML{
+                template.HTML("<th>Name</th>"),
+                template.HTML("<th>Ready</th>"),
+                template.HTML("<th>#</th>"),
+                template.HTML("<th>Remove</th>"), },
+            htmlgames, },
+        "","", }
+    err = tmpl.Execute(w, data)
     if err != nil {
         http.Error(w, err.Error(), 500)
         return
@@ -74,7 +102,7 @@ func root(w http.ResponseWriter, r *http.Request) {
 // creates a new Client, and writes the HTML response.
 func create(w http.ResponseWriter, r *http.Request) {
     // Get the name from the request URL.
-    name := r.URL.Path[8:]
+    name := strings.Split(r.URL.Path, "/")[2]
     // If no valid name is provided, show an error.
     if !validName.MatchString(name) {
         http.Error(w, "Invalid tartan name", 404)
@@ -97,7 +125,7 @@ func create(w http.ResponseWriter, r *http.Request) {
 // creates a new Client, and writes the HTML response.
 func start(w http.ResponseWriter, r *http.Request) {
     // Get the name from the request URL.
-    name := r.URL.Path[7:]
+    name := strings.Split(r.URL.Path, "/")[2]
     // If no valid name is provided, show an error.
     if !validName.MatchString(name) {
         http.Error(w, "Invalid tartan name", 404)
@@ -126,24 +154,34 @@ func start(w http.ResponseWriter, r *http.Request) {
     }
 
     // Create a list of players to display
-    players, _ := game.GetPlayers(c)
+    players, err := game.GetPlayers(c)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+    }
+
     // Send the current players the new list
     err = game.Send(c, Message{ Players : players } )
     if err != nil {
         http.Error(w, err.Error(), 500)
     }
 
-    htmlplayers := ""
-    for _, player := range players {
-        htmlplayers = fmt.Sprintf(`%v<tr class="active">
-        <td>%v</td>
-        <td><a href="#"><span style="color:black;" class="glyphicon glyphicon-ok"></span></a></td>
-        <td><a href="/leave/%v"><span style="color:black;" class="glyphicon glyphicon-remove"></span></a></td>
-        </tr>`, htmlplayers, player.Name, game.Id)
+    htmlplayers := make([]template.HTML, len(players))
+    for index, player := range players {
+        htmlplayers[index] = template.HTML(fmt.Sprintf(`<tr class="active">
+        <td>%v</td><td><span style="color:black;" class="glyphicon glyphicon-ok"></span></td>
+        </tr>`, player.Name))
     }
 
     // Render the HTML template
-    data := struct{ Game, Token, Logout string; Players template.HTML }{ game.Id, token, url, template.HTML(htmlplayers) }
+    data := tmplData{
+        game.Id, url,
+        TableData{
+             "Current Players",
+             []template.HTML{
+                 template.HTML("<th>Name</th>"),
+                 template.HTML("<th>Ready</th>"), },
+             htmlplayers },
+         game.Id, token, }
     err = tmpl.Execute(w, data)
     if err != nil {
         http.Error(w, err.Error(), 500)
@@ -154,7 +192,7 @@ func start(w http.ResponseWriter, r *http.Request) {
 
 func remove(w http.ResponseWriter, r *http.Request) {
     // Get the name from the request URL.
-    name := r.URL.Path[8:]
+    name := strings.Split(r.URL.Path, "/")[2]
     // If no valid name is provided, show an error.
     if !validName.MatchString(name) {
         http.Error(w, "Invalid tartan name", 404)
@@ -176,7 +214,7 @@ func remove(w http.ResponseWriter, r *http.Request) {
 
 func leave(w http.ResponseWriter, r *http.Request) {
     // Get the name from the request URL.
-    name := r.URL.Path[7:]
+    name := strings.Split(r.URL.Path, "/")[2]
     // If no valid name is provided, show an error.
     if !validName.MatchString(name) {
         http.Error(w, "Invalid tartan name", 404)

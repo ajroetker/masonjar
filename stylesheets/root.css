@@ -4,8 +4,9 @@ html {
 }
 #body {
     font-family: sans-serif;
+    height: 200px;
 }
-#heading {
+#cover-heading {
     font-size: 150%;
     color: #104;
 }
@@ -20,10 +21,14 @@ html {
     padding: 4px;
 }
 #log {
-    height: 200px;
+    height: 300px;
     overflow: scroll;
 }
 #info-table {
-    height: 200px;
+    height: 300px;
+    overflow: scroll;
+}
+
+#players-table {
     overflow: scroll;
 }
