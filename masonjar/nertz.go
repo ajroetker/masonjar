@@ -18,6 +18,7 @@ func NewLake(numPlayers int) []Card {
     }
     return lake
 }
+
 func NewGame(them []Player) *CardGame {
     var players, scores map[string]int
     for _, player := range them {

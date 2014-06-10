@@ -13,6 +13,7 @@ import (
 // Player is a participant in a card Game.
 type Player struct{
     Name   string
+    Status int
 }
 
 type Card struct{
@@ -22,10 +23,6 @@ type Card struct{
     Suit  int
     // Useful for multiplayer games
     Owner string
-}
-
-type Lake struct{
-    Piles [][]Card
 }
 
 // Game represents a card game.
@@ -42,7 +39,21 @@ func (g *Game) Key(c appengine.Context) *datastore.Key {
 // parent, creates a channel and returns the channel token.
 func (g *Game) AddPlayer(c appengine.Context, id string) (string, error) {
     key := datastore.NewKey(c, "Player", id, 0, g.Key(c))
-    client := &Player{ Name: id }
+    client := &Player{ Name: id, Status: 0 }
+    _, err := datastore.Put(c, key, client)
+    if err != nil {
+        return "", err
+    }
+
+    // Purge the now-invalid cache record (if it exists).
+    memcache.Delete(c, g.Id)
+
+    return channel.Create(c, id)
+}
+
+func (g *Game) ReadyPlayer(c appengine.Context, id string) (string, error) {
+    key := datastore.NewKey(c, "Player", id, 0, g.Key(c))
+    client := &Player{ Name: id, Status: 1 }
     _, err := datastore.Put(c, key, client)
     if err != nil {
         return "", err
@@ -96,7 +107,6 @@ func (g *Game) GetPlayers(c appengine.Context) ( []Player, error ) {
 }
 
 type Message struct{
-    Lake []Card
     Players []Player
     Error string
     Text string
@@ -144,7 +154,7 @@ func (game *Game) remove(c appengine.Context) error {
     return datastore.Delete(c, game.Key(c))
 }
 
-// getRoom fetches a Room by name from the datastore,
+// getGame fetches a Game by name from the datastore,
 // creating it if it doesn't exist already.
 func getGame(c appengine.Context, id string) (*Game, error) {
     game := &Game{ Status: 0, Id: id }

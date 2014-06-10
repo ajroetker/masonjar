@@ -29,6 +29,7 @@ func init() {
     http.HandleFunc("/start/", start)
     http.HandleFunc("/leave/", leave)
     http.HandleFunc("/create/", create)
+    http.HandleFunc("/ready/", ready)
     http.HandleFunc("/remove/", remove)
     http.HandleFunc("/post", post)
 }
@@ -121,6 +122,86 @@ func create(w http.ResponseWriter, r *http.Request) {
     http.Redirect(w, r, "/", 301)
 }
 
+func waiting(c appengine.Context, w http.ResponseWriter, r *http.Request, token string, game *Game) {
+
+    url, err := user.LogoutURL(c, r.URL.String())
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    // Create a list of players to display
+    players, err := game.GetPlayers(c)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+    }
+
+    // Send the current players the new list
+    err = game.Send(c, Message{ Players : players } )
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+    }
+
+    htmlplayers := make([]template.HTML, len(players))
+    for index, player := range players {
+        var status, glyph string
+        if player.Status == 0 {
+            status = "danger"
+            glyph = "remove"
+        } else {
+            status = "active"
+            glyph = "ok"
+        }
+        htmlplayers[index] = template.HTML(fmt.Sprintf(`<tr class="%v">
+        <td>%v</td><td><span style="color:black;" class="glyphicon glyphicon-%v"></span></td>
+        </tr>`, status, player.Name, glyph))
+    }
+
+    // Render the HTML template
+    data := tmplData{
+        game.Id, url,
+        TableData{
+             "Current Players",
+             []template.HTML{
+                 template.HTML("<th>Name</th>"),
+                 template.HTML("<th>Ready</th>"), },
+             htmlplayers },
+         game.Id, token, }
+    err = tmpl.Execute(w, data)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+
+}
+
+func ready(w http.ResponseWriter, r *http.Request) {
+    // Get the name from the request URL.
+    name := strings.Split(r.URL.Path, "/")[2]
+    // If no valid name is provided, show an error.
+    if !validName.MatchString(name) {
+        http.Error(w, "Invalid tartan name", 404)
+        return
+    }
+    c := appengine.NewContext(r)
+
+    // Get or create the Game.
+    game, err := getGame(c, name)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+
+    // Create a new Client, getting the channel token.
+    token, err := game.ReadyPlayer(c, user.Current(c).String())
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+
+    waiting(c, w, r, token, game)
+}
+
 // start is an HTTP handler that joins or creates a Game,
 // creates a new Client, and writes the HTML response.
 func start(w http.ResponseWriter, r *http.Request) {
@@ -147,47 +228,7 @@ func start(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    url, err := user.LogoutURL(c, r.URL.String())
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
-
-    // Create a list of players to display
-    players, err := game.GetPlayers(c)
-    if err != nil {
-        http.Error(w, err.Error(), 500)
-    }
-
-    // Send the current players the new list
-    err = game.Send(c, Message{ Players : players } )
-    if err != nil {
-        http.Error(w, err.Error(), 500)
-    }
-
-    htmlplayers := make([]template.HTML, len(players))
-    for index, player := range players {
-        htmlplayers[index] = template.HTML(fmt.Sprintf(`<tr class="active">
-        <td>%v</td><td><span style="color:black;" class="glyphicon glyphicon-ok"></span></td>
-        </tr>`, player.Name))
-    }
-
-    // Render the HTML template
-    data := tmplData{
-        game.Id, url,
-        TableData{
-             "Current Players",
-             []template.HTML{
-                 template.HTML("<th>Name</th>"),
-                 template.HTML("<th>Ready</th>"), },
-             htmlplayers },
-         game.Id, token, }
-    err = tmpl.Execute(w, data)
-    if err != nil {
-        http.Error(w, err.Error(), 500)
-        return
-    }
-
+    waiting(c, w, r, token, game)
 }
 
 func remove(w http.ResponseWriter, r *http.Request) {
