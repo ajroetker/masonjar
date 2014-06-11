@@ -49,8 +49,8 @@
 
           <div class="row">
             {{if .Game}}
-            <h2 style="text-align:center;" class="cover-heading">Waiting room: {{html .PageName}}</h2>
-            <div class="row" >
+            <h2 style="text-align:center;" id= "PageName" class="cover-heading">Waiting room: {{html .PageName}}</h2>
+            <div style="display:none" id="boardGame" class="row" >
               <div class="inner cover col-lg-12">
                 <canvas id="myCanvas" width="540px" height="250px"></canvas>
               </div>
@@ -90,7 +90,7 @@
                 <table class="table table-condensed">
                   <thead>
                     {{range .Headers}}
-                    {{.}}
+                    <th style="text-align:center">{{.}}</th>
                     {{end}}
                   </thead>
                   <tbody id="players" style="color:black;">
@@ -151,14 +151,25 @@
               var message = JSON.parse(msg.data);
               if (message.Text) { $("#log").prepend($('<div />').text(message.Text)) };
               var html = '<tbody id="players" style="color:black;" class="table table-centered">';
-              var loc  = window.location.href;
+              var ready = true;
               $.each( message.Players, function( index, player ) {
-                html += '<tr class=active><td>' + player.Name +
-                '</td><td><a href="#"><span style="color:black;"' +
-                'class="glyphicon glyphicon-ok"></span></a></td></tr>';
+                  var activity, iconname;
+                  if (player.Status) {
+                      activity = "active";
+                      iconname = "ok";
+                      } else {
+                      activity = "danger";
+                      iconname = "remove";
+                      ready = false;
+                  }
+                html += '<tr class=' +  activity + '><td>' + player.Name +
+                '</td><td><span style="color:black;"' +
+                'class="glyphicon glyphicon-' + iconname + '"></span></a></td></tr>';
               });
               html += '</tbody>';
               $("#players").replaceWith(html);
+              if (ready) { $("#boardGame").css("display", "") };
+              if (ready) { $("#PageName").text("Begin!") };
             }
 
             var $in = $('#in input').focus();
@@ -170,24 +181,6 @@
                   var msg = $in.val();
                   $in.val('');
                   $.ajax('/post', {data: {game: game, msg: msg}});
-                }
-            });
-        });
-    </script>
-    {{else}}
-    <script>
-        $(function() {
-            var $in = $('#in input').focus();
-            $in.keypress(function(e) {
-                if (e.which != 13 && e.which != 10) {
-                  return;
-                } else {
-                  e.preventDefault();
-                  var msg = $in.val();
-                  if (msg.length > 0) {
-                    $in.val('');
-                    window.location.href = "/create/" + msg;
-                  }
                 }
             });
         });

@@ -17,14 +17,14 @@ type RowData struct{
 
 type tmplData struct{
     PageName, Logout string
-    TableData interface{}
+    TableData TableData
     Game, Token string
 }
 
 type TableData struct{
     Name string
-    Headers []template.HTML
-    Body interface{}
+    Headers []string
+    Body []RowData
 }
 
 func init() {
@@ -80,11 +80,7 @@ func root(w http.ResponseWriter, r *http.Request) {
         "Welcome to MasonJar!", url,
         TableData{
             "Current Games",
-            []template.HTML{
-                template.HTML("<th>Name</th>"),
-                template.HTML("<th>Ready</th>"),
-                template.HTML("<th>#</th>"),
-                template.HTML("<th>Remove</th>"), },
+            []string{ "Name", "Ready", "#", "Remove", },
             htmlgames, },
         "","", }
     err = tmpl.Execute(w, data)
@@ -116,10 +112,11 @@ func waiting(c appengine.Context, w http.ResponseWriter, r *http.Request, token 
 
     htmlplayers := make([]RowData, len(players))
     for i, player := range players {
-        if game.Status == 0 {
+        if player.Status == 0 {
             htmlplayers[i] = RowData{
                 IconName : "remove",
                 Activity : "danger",
+                // Set this to -1 for the template
                 NumPlayers: -1,
                 Game     : player.Name,
             }
@@ -138,9 +135,7 @@ func waiting(c appengine.Context, w http.ResponseWriter, r *http.Request, token 
         game.Id, url,
         TableData{
              "Current Players",
-             []template.HTML{
-                 template.HTML("<th>Name</th>"),
-                 template.HTML("<th>Ready</th>"), },
+             []string{ "Name", "Ready", },
              htmlplayers },
          game.Id, token, }
     err = tmpl.Execute(w, data)
@@ -230,6 +225,18 @@ func leave(w http.ResponseWriter, r *http.Request) {
     if err != nil {
         http.Error(w, err.Error(), 500)
         return
+    }
+
+    // Create a list of players to display
+    players, err := game.GetPlayers(c)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+    }
+
+    // Send the current players the new list
+    err = game.Send(c, Message{ Players : players } )
+    if err != nil {
+        http.Error(w, err.Error(), 500)
     }
     http.Redirect(w, r, "/", 301)
 }

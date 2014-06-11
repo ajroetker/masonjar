@@ -66,8 +66,6 @@ func (g *Game) ReadyPlayer(c appengine.Context, id string) (string, error) {
 }
 
 //TODO run this in a transaction?
-// AddClient puts a Client record to the datastore with the Room as its
-// parent, creates a channel and returns the channel token.
 func (g *Game) RemovePlayer(c appengine.Context, id string) error {
     key := datastore.NewKey(c, "Player", id, 0, g.Key(c))
     err := datastore.Delete(c, key)
@@ -166,6 +164,17 @@ func getGame(c appengine.Context, id string) (*Game, error) {
     return game, datastore.RunInTransaction(c, fn, nil)
 }
 
+// readyGame fetches a Game by name from the datastore,
+// and marks the game as in progress
+func readyGame(c appengine.Context, id string) (*Game, error) {
+    game   := &Game{ Status: 1, Id: id }
+    _, err := datastore.Put(c, game.Key(c), game)
+
+    // Purge the now-invalid cache record (if it exists).
+    memcache.Delete(c, "games")
+    return game, err
+}
+
 func getAll(c appengine.Context) ([]Game, error) {
     names := []string{ "Nertz", "Solitaire", "Hearts" }
     games := make([]Game, len(names))
@@ -177,5 +186,6 @@ func getAll(c appengine.Context) ([]Game, error) {
         }
         games[i] = *game
     }
+    memcache.Delete(c, "games")
     return games, nil
 }
