@@ -7,9 +7,13 @@ import (
     "net/http"
     "html/template"
     "fmt"
-    "time"
     "strings"
 )
+
+type RowData struct{
+    IconName, Activity, Game string
+    NumPlayers int
+}
 
 type tmplData struct{
     PageName, Logout string
@@ -28,9 +32,7 @@ func init() {
     http.HandleFunc("/", root)
     http.HandleFunc("/start/", start)
     http.HandleFunc("/leave/", leave)
-    http.HandleFunc("/create/", create)
     http.HandleFunc("/ready/", ready)
-    http.HandleFunc("/remove/", remove)
     http.HandleFunc("/post", post)
 }
 
@@ -49,36 +51,29 @@ func root(w http.ResponseWriter, r *http.Request) {
     }
 
     // Create a list of games to display
-    games, err := getAllGames(c)
+    games, err := getAll(c)
     if err != nil {
         http.Error(w, err.Error(), 500)
         return
     }
 
-    htmlgames := make([]template.HTML, len(games))
-    for index, game := range games {
-        var mark, status, quit, leave string
-        if game.Status == 0 {
-            mark = "ok"
-            status = "success"
-        } else {
-            mark = "remove"
-            status = "danger"
-        }
+    htmlgames := make([]RowData, len(games))
+    for i, game := range games {
         players, _ := game.GetPlayers(c)
-        if len(players) == 0 {
-            quit = "trash"
-            leave = "remove"
+        if game.Status == 0 {
+            htmlgames[i] = RowData{
+            IconName : "ok",
+            Activity : "success",
+            NumPlayers: len(players),
+            Game     : game.Id }
         } else {
-            quit = "remove-sign"
-            leave = "leave"
+            htmlgames[i] = RowData{
+                IconName : "remove",
+                Activity : "danger",
+                NumPlayers: len(players),
+                Game     : game.Id }
+            }
         }
-        htmlgames[index] = template.HTML(fmt.Sprintf(`<tr class="%v">
-        <td><a style="color:black;" href="/start/%v">%v</a></td><td>
-        <span class="glyphicon glyphicon-%v"></span></td><td>%v</td>
-        <td><a style="color:black;" href="/%v/%v"><span class="glyphicon glyphicon-%v"></span></a></td></tr>`,
-          status, game.Id, game.Id, mark, len(players), leave, game.Id, quit))
-    }
 
     // Render the HTML template
     data := tmplData{
@@ -97,29 +92,6 @@ func root(w http.ResponseWriter, r *http.Request) {
         http.Error(w, err.Error(), 500)
         return
     }
-}
-
-// start is an HTTP handler that joins or creates a Game,
-// creates a new Client, and writes the HTML response.
-func create(w http.ResponseWriter, r *http.Request) {
-    // Get the name from the request URL.
-    name := strings.Split(r.URL.Path, "/")[2]
-    // If no valid name is provided, show an error.
-    if !validName.MatchString(name) {
-        http.Error(w, "Invalid tartan name", 404)
-        return
-    }
-    c := appengine.NewContext(r)
-
-    // Get or create the Game.
-    _, err := getGame(c, name)
-    if err != nil {
-        http.Error(w, err.Error(), 500)
-        return
-    }
-    // Wait for the db to update
-    time.Sleep(100 * time.Millisecond)
-    http.Redirect(w, r, "/", 301)
 }
 
 func waiting(c appengine.Context, w http.ResponseWriter, r *http.Request, token string, game *Game) {
@@ -142,19 +114,23 @@ func waiting(c appengine.Context, w http.ResponseWriter, r *http.Request, token 
         http.Error(w, err.Error(), 500)
     }
 
-    htmlplayers := make([]template.HTML, len(players))
-    for index, player := range players {
-        var status, glyph string
-        if player.Status == 0 {
-            status = "danger"
-            glyph = "remove"
+    htmlplayers := make([]RowData, len(players))
+    for i, player := range players {
+        if game.Status == 0 {
+            htmlplayers[i] = RowData{
+                IconName : "remove",
+                Activity : "danger",
+                NumPlayers: -1,
+                Game     : player.Name,
+            }
         } else {
-            status = "active"
-            glyph = "ok"
+            htmlplayers[i] = RowData{
+                IconName : "ok",
+                Activity : "active",
+                NumPlayers: -1,
+                Game     : player.Name,
+            }
         }
-        htmlplayers[index] = template.HTML(fmt.Sprintf(`<tr class="%v">
-        <td>%v</td><td><span style="color:black;" class="glyphicon glyphicon-%v"></span></td>
-        </tr>`, status, player.Name, glyph))
     }
 
     // Render the HTML template
@@ -229,28 +205,6 @@ func start(w http.ResponseWriter, r *http.Request) {
     }
 
     waiting(c, w, r, token, game)
-}
-
-func remove(w http.ResponseWriter, r *http.Request) {
-    // Get the name from the request URL.
-    name := strings.Split(r.URL.Path, "/")[2]
-    // If no valid name is provided, show an error.
-    if !validName.MatchString(name) {
-        http.Error(w, "Invalid tartan name", 404)
-        return
-    }
-    c := appengine.NewContext(r)
-
-    // Remove the Game.
-    game := &Game{ Status: 0, Id: name }
-    err := game.remove(c)
-    if err != nil {
-        http.Error(w, err.Error(), 500)
-        return
-    }
-    // Wait for the db to update
-    time.Sleep(100 * time.Millisecond)
-    http.Redirect(w, r, "/", 301)
 }
 
 func leave(w http.ResponseWriter, r *http.Request) {

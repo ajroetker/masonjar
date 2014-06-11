@@ -144,16 +144,6 @@ func (g *Game) Send(c appengine.Context, message Message) error {
     return nil
 }
 
-func (game *Game) remove(c appengine.Context) error {
-
-    // Purge the now-invalid cache record (if it exists).
-    err := memcache.Delete(c, "games")
-    if err != nil {
-        return err
-    }
-    return datastore.Delete(c, game.Key(c))
-}
-
 // getGame fetches a Game by name from the datastore,
 // creating it if it doesn't exist already.
 func getGame(c appengine.Context, id string) (*Game, error) {
@@ -176,28 +166,16 @@ func getGame(c appengine.Context, id string) (*Game, error) {
     return game, datastore.RunInTransaction(c, fn, nil)
 }
 
-func getAllGames(c appengine.Context) ([]Game, error) {
-    var games []Game
+func getAll(c appengine.Context) ([]Game, error) {
+    names := []string{ "Nertz", "Solitaire", "Hearts" }
+    games := make([]Game, len(names))
 
-    memcache.Delete(c, "games")
-    _, err := memcache.JSON.Get(c, "games", &games)
-    if err != nil && err != memcache.ErrCacheMiss {
-        return nil, err
-    }
-
-    if err == memcache.ErrCacheMiss {
-        q := datastore.NewQuery("Game")
-        _, err = q.GetAll(c, &games)
+    for i, name := range names {
+        game, err := getGame(c, name)
         if err != nil {
             return nil, err
         }
-        err = memcache.JSON.Set(c, &memcache.Item{
-            Key: "games", Object: games,
-        })
-        if err != nil {
-            return nil, err
-        }
+        games[i] = *game
     }
-
     return games, nil
 }
