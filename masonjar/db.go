@@ -35,12 +35,15 @@ func (g *Game) Key(c appengine.Context) *datastore.Key {
     return datastore.NewKey(c, "Game", g.Id, 0, nil)
 }
 
+func (p *Player) Key(c appengine.Context, game *Game) *datastore.Key {
+    return datastore.NewKey(c, "Player", p.Name, 0, game.Key(c))
+}
+
 // AddClient puts a Client record to the datastore with the Room as its
 // parent, creates a channel and returns the channel token.
 func (g *Game) AddPlayer(c appengine.Context, id string) (string, error) {
-    key := datastore.NewKey(c, "Player", id, 0, g.Key(c))
     client := &Player{ Name: id, Status: 0 }
-    _, err := datastore.Put(c, key, client)
+    _, err := datastore.Put(c, client.Key(c, g), client)
     if err != nil {
         return "", err
     }
@@ -52,9 +55,21 @@ func (g *Game) AddPlayer(c appengine.Context, id string) (string, error) {
 }
 
 func (g *Game) ReadyPlayer(c appengine.Context, id string) (string, error) {
-    key := datastore.NewKey(c, "Player", id, 0, g.Key(c))
     client := &Player{ Name: id, Status: 1 }
-    _, err := datastore.Put(c, key, client)
+    _, err := datastore.Put(c, client.Key(c, g), client)
+    if err != nil {
+        return "", err
+    }
+
+    // Purge the now-invalid cache record (if it exists).
+    memcache.Delete(c, g.Id)
+
+    return channel.Create(c, id)
+}
+
+func (g *Game) WatcherPlayer(c appengine.Context, id string) (string, error) {
+    client := &Player{ Name: id, Status: 2 }
+    _, err := datastore.Put(c, client.Key(c, g), client)
     if err != nil {
         return "", err
     }
@@ -67,8 +82,8 @@ func (g *Game) ReadyPlayer(c appengine.Context, id string) (string, error) {
 
 //TODO run this in a transaction?
 func (g *Game) RemovePlayer(c appengine.Context, id string) error {
-    key := datastore.NewKey(c, "Player", id, 0, g.Key(c))
-    err := datastore.Delete(c, key)
+    client := &Player{ Name: id }
+    err := datastore.Delete(c, client.Key(c, g) )
     if err != nil {
         return err
     }
@@ -173,19 +188,4 @@ func readyGame(c appengine.Context, id string) (*Game, error) {
     // Purge the now-invalid cache record (if it exists).
     memcache.Delete(c, "games")
     return game, err
-}
-
-func getAll(c appengine.Context) ([]Game, error) {
-    names := []string{ "Nertz", "Solitaire", "Hearts" }
-    games := make([]Game, len(names))
-
-    for i, name := range names {
-        game, err := getGame(c, name)
-        if err != nil {
-            return nil, err
-        }
-        games[i] = *game
-    }
-    memcache.Delete(c, "games")
-    return games, nil
 }
