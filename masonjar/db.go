@@ -41,7 +41,34 @@ func (p *Player) Key(c appengine.Context, game *Game) *datastore.Key {
 
 // AddClient puts a Client record to the datastore with the Room as its
 // parent, creates a channel and returns the channel token.
-func (g *Game) AddPlayer(c appengine.Context, id string) (string, error) {
+func (g *Game) GetPlayer(c appengine.Context, id string) (string, error) {
+    client := &Player{ Status: 0, Name: id }
+
+    fn := func(c appengine.Context) error {
+        err := datastore.Get(c, client.Key(c, g), client)
+        if err == datastore.ErrNoSuchEntity {
+            _, err = datastore.Put(c, client.Key(c, g), client)
+        }
+        return err
+    }
+
+    // Purge the now-invalid cache record (if it exists).
+    memcache.Delete(c, g.Id)
+
+    // datastore.RunInTransaction prevents a race condition
+    // where two requests might try to make a room that both
+    // to not exist. The failed transaction retries.
+    err := datastore.RunInTransaction(c, fn, nil)
+    if err != nil {
+        return "", err
+    }
+
+    return channel.Create(c, id)
+}
+
+// AddClient puts a Client record to the datastore with the Room as its
+// parent, creates a channel and returns the channel token.
+func (g *Game) NotReadyPlayer(c appengine.Context, id string) (string, error) {
     client := &Player{ Name: id, Status: 0 }
     _, err := datastore.Put(c, client.Key(c, g), client)
     if err != nil {

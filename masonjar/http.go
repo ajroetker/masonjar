@@ -50,7 +50,7 @@ func start(w http.ResponseWriter, r *http.Request) {
     }
 
     // Create a new Client, getting the channel token.
-    token, err := game.AddPlayer(c, user.Current(c).String())
+    token, err := game.GetPlayer(c, user.Current(c).String())
     if err != nil {
         http.Error(w, err.Error(), 500)
         return
@@ -180,7 +180,7 @@ func leave(w http.ResponseWriter, r *http.Request) {
     }
 
     // Delete a Client.
-    _, err = game.AddPlayer(c, user.Current(c).String())
+    _, err = game.NotReadyPlayer(c, user.Current(c).String())
     if err != nil {
         http.Error(w, err.Error(), 500)
         return

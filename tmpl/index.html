@@ -37,7 +37,7 @@
           <div class="masthead clearfix">
             <div class="inner">
               <h3 class="masthead-brand"><img src="/img/masonjar.png" alt="Mason Jar"
-              height="55px" width="50px"> - MasonJar</h3>
+              height="50px" width="33px"> - MasonJar</h3>
               <ul class="nav masthead-nav">
                 <li class="active"><a href="/">Home</a></li>
                 <li><a href="{{html .Logout}}">Logout</a></li>
@@ -53,12 +53,11 @@
               <a id="quit" class="btn btn-lg btn-danger">Quit</a>
               </p>
             </div><!-- /.row -->
-            <div style="display:none" id="boardGame" class="row" >
+            <div id="boardGame" class="row" >
               <div class="inner cover col-lg-12">
-                <canvas id="myCanvas" width="540px" height="250px"></canvas>
+                <canvas id="myCanvas" style="background-color: #555; border: 2px
+                  solid; border-radius: 7px; border-color: #222;" width="425px" height="250px"></canvas>
               </div>
-              <img style="display:none;" id="hearts"
-              src="/img/7-of-hearts.png" >
             </div>
             <div class="inner cover col-sm-6">
 
@@ -100,7 +99,8 @@
 
           <div class="mastfoot">
             <div class="inner">
-              <p>Cover template for <a href="http://getbootstrap.com">Bootstrap</a>, by <a href="https://twitter.com/mdo">@mdo</a>.</p>
+              <p>MasonJar is a <a href="http://en.wikipedia.org/wiki/Nertz" target="_blank">nertz</a>
+              game-server, by <a href="https://twitter.com/figurEights" target="_blank">@figurEights</a>.</p>
             </div>
           </div>
 
@@ -116,11 +116,6 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
     <!-- Latest compiled and minified JavaScript -->
     <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
-    <!-- Load the Paper.js library -->
-    <script type="text/javascript" src="/js/paper-full.js"></script>
-    <!-- Define inlined PaperScript associate it with myCanvas -->
-    <script type="text/paperscript" src="/js/myScript.js" canvas="myCanvas"></script>
-
     <script src="/_ah/channel/jsapi"></script>
     <script>
         $(function() {
@@ -133,7 +128,6 @@
               var message = JSON.parse(msg.data);
               if (message.Text) { $("#log").prepend($('<div />').text(message.Text)) };
               var html = '<tbody id="players" style="color:black;" class="table table-centered">';
-              var ready = true;
               $.each( message.Players, function( index, player ) {
                   var activity, iconname;
                   switch (player.Status) {
@@ -144,12 +138,10 @@
                   case 0:
                     activity = "danger";
                     iconname = "remove";
-                    ready = false;
                     break;
                   default:
                     activity = "info";
                     iconname = "search";
-                    ready = true;
                     break;
                   }
                 html += '<tr class=' +  activity + '><td>' + player.Name +
@@ -158,13 +150,11 @@
               });
               html += '</tbody>';
               $("#players").replaceWith(html);
-              if (ready) { $("#boardGame").css("display", "") };
             }
 
             $("#ready").click( function(){
                 $.ajax('/ready', {data: ""});
             });
-
             $("#quit").click( function(){
                 $.ajax('/leave', {data: ""});
             });
@@ -185,5 +175,10 @@
             });
         });
     </script>
+    <!-- Load the Paper.js library -->
+    <script type="text/javascript" src="/js/paper-full.js"></script>
+    <!-- Define inlined PaperScript associate it with myCanvas -->
+    <script type="text/javascript" src="/js/myScript.js"></script>
+
   </body>
 </html>
