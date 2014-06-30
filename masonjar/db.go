@@ -66,48 +66,26 @@ func (g *Game) GetPlayer(c appengine.Context, id string) (string, error) {
     return channel.Create(c, id)
 }
 
-// AddClient puts a Client record to the datastore with the Room as its
-// parent, creates a channel and returns the channel token.
-func (g *Game) NotReadyPlayer(c appengine.Context, id string) (string, error) {
-    client := &Player{ Name: id, Status: 0 }
+func (g *Game) SetPlayerStatus(c appengine.Context, id string, status int) error {
+    client := &Player{ Name: id, Status: status }
     _, err := datastore.Put(c, client.Key(c, g), client)
-    if err != nil {
-        return "", err
-    }
 
     // Purge the now-invalid cache record (if it exists).
     memcache.Delete(c, g.Id)
 
-    return channel.Create(c, id)
+    return err
 }
 
-func (g *Game) ReadyPlayer(c appengine.Context, id string) (string, error) {
-    client := &Player{ Name: id, Status: 1 }
-    _, err := datastore.Put(c, client.Key(c, g), client)
-    if err != nil {
-        return "", err
-    }
-
-    // Purge the now-invalid cache record (if it exists).
-    memcache.Delete(c, g.Id)
-
-    return channel.Create(c, id)
-}
-
-func (g *Game) WatcherPlayer(c appengine.Context, id string) (string, error) {
+func (g *Game) WatcherPlayer(c appengine.Context, id string) error {
     client := &Player{ Name: id, Status: 2 }
     _, err := datastore.Put(c, client.Key(c, g), client)
-    if err != nil {
-        return "", err
-    }
 
     // Purge the now-invalid cache record (if it exists).
     memcache.Delete(c, g.Id)
 
-    return channel.Create(c, id)
+    return err
 }
 
-//TODO run this in a transaction?
 func (g *Game) RemovePlayer(c appengine.Context, id string) error {
     client := &Player{ Name: id }
     err := datastore.Delete(c, client.Key(c, g) )
@@ -147,9 +125,9 @@ func (g *Game) GetPlayers(c appengine.Context) ( []Player, error ) {
 }
 
 type Message struct{
+    Text string
     Players []Player
     Error string
-    Text string
 }
 
 func (g *Game) Send(c appengine.Context, message Message) error {

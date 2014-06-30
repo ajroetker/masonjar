@@ -36,8 +36,8 @@
 
           <div class="masthead clearfix">
             <div class="inner">
-              <h3 class="masthead-brand"><img src="/img/masonjar.png" alt="Mason Jar"
-              height="50px" width="33px"> - MasonJar</h3>
+              <h4 class="masthead-brand"><img src="/img/masonjar.png" alt="Mason Jar"
+              height="33px" width="22px"> - MasonJar</h4>
               <ul class="nav masthead-nav">
                 <li class="active"><a href="/">Home</a></li>
                 <li><a href="{{html .Logout}}">Logout</a></li>
@@ -48,9 +48,9 @@
           <div class="row">
             <div class="row">
               <p class="lead">
-              <a id="ready" class="btn btn-lg btn-success">Ready</a>
-              <a id="watch" class="btn btn-lg btn-primary">Watch</a>
-              <a id="quit" class="btn btn-lg btn-danger">Quit</a>
+                <a id="ready" class="btn btn-lg btn-success">Ready</a>
+                <a id="watch" class="btn btn-lg btn-primary">Watch</a>
+                <a id="quit" class="btn btn-lg btn-danger">Quit</a>
               </p>
             </div><!-- /.row -->
             <div id="boardGame" class="row" >
@@ -58,42 +58,17 @@
                 <canvas id="myCanvas" style="background-color: #555; border: 2px
                   solid; border-radius: 7px; border-color: #222;" width="425px" height="250px"></canvas>
               </div>
-            </div>
-            <div class="inner cover col-sm-6">
-
-              <div id="body">
-                  <div id="in" class="input-group">
-                  <h4 style="text-align: left;">Chat:</h4>
-                  <input type="text" class="form-control"></div>
-                  <div id="log" style="font-size: 12pt;"></div>
-              </div><!-- /.chat-body -->
-            </div>
-            {{define "tableRow"}}
-            <tr class="{{html .Activity}}">
-                <td>{{html .Name}}</td><td><span style="color:black;" class="glyphicon glyphicon-{{html .IconName}}">
-                </span></td>
-            </tr>
-            {{end}}
-            {{define "table"}}
-              <h4 class="sidebar-heading">{{html .Name}}</h4>
-              <div id="info-table">
-                <table class="table table-condensed">
-                  <thead>
-                    {{range .Headers}}
-                    <th style="text-align:center">{{.}}</th>
-                    {{end}}
-                  </thead>
-                  <tbody id="players" style="color:black;">
-                    {{range .Body}}
-                    {{template "tableRow" .}}
-                    {{end}}
-                  </tbody>
-                </table>
-              </div><!-- /.info-table -->
-            {{end}}
-            <div id="players-table" class="inner cover col-sm-6">
-              {{template "table" .TableData}}
-            </div><!-- /.players-table -->
+            </div><!-- /.row -->
+            <div class="row">
+              <div id="players-table" class="inner cover col-sm-12">
+                <h4 class="sidebar-heading">Current Players</h4>
+                <div id="info-table">
+                  <table class="table table-condensed">
+                    <tbody id="players" style="color:black;"></tbody>
+                  </table>
+                </div><!-- /.info-table -->
+              </div><!-- /.players-table -->
+            </div><!-- /.row -->
           </div><!-- /.row -->
 
 
@@ -114,69 +89,88 @@
     ================================================== -->
     <!-- Placed at the end of the document so the pages load faster -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/jquery-ui.min.js"></script>
     <!-- Latest compiled and minified JavaScript -->
-    <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+    <script src="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
     <script src="/_ah/channel/jsapi"></script>
     <script>
         $(function() {
             var game = '{{js .Game}}';
             var token = '{{js .Token}}';
 
-            var chan = new goog.appengine.Channel(token);
-            var sock = chan.open();
-            sock.onmessage = function(msg) {
-              var message = JSON.parse(msg.data);
-              if (message.Text) { $("#log").prepend($('<div />').text(message.Text)) };
-              var html = '<tbody id="players" style="color:black;" class="table table-centered">';
-              $.each( message.Players, function( index, player ) {
+            var generate = function() {
+              $.ajax({
+                url: '/generate',
+                dataType: 'json',
+                success: function(data) {
+                  var board = new Board(data);
+                  board.render();
+                },
+              });
+            };
+
+            var playersRender = function(players) {
+              // Clear the table
+              var body = $("#players tr");
+              body.remove();
+              // Replace with everything new
+              $.each( players, function( index, player ) {
                   var activity, iconname;
                   switch (player.Status) {
                   case 1:
                     activity = "success";
-                    iconname = "ok";
+                    iconname = "glyphicon glyphicon-ok";
                     break;
                   case 0:
                     activity = "danger";
-                    iconname = "remove";
+                    iconname = "glyphicon glyphicon-remove";
                     break;
                   default:
                     activity = "info";
-                    iconname = "search";
+                    iconname = "glyphicon glyphicon-search";
                     break;
                   }
-                html += '<tr class=' +  activity + '><td>' + player.Name +
-                '</td><td><span style="color:black;"' +
-                'class="glyphicon glyphicon-' + iconname + '"></span></a></td></tr>';
+                  $("#players").append( $('<tr></tr>').addClass(activity)
+                    .append( $('<td />').text(player.Name) )
+                    .append( $('<td></td>').append( $('<span />').css("color", "black").addClass(iconname))));
               });
-              html += '</tbody>';
-              $("#players").replaceWith(html);
+            };
+
+            $("#myCanvas").hide();
+
+            var chan = new goog.appengine.Channel(token);
+            var sock = chan.open();
+            sock.onmessage = function(msg) {
+              var message = JSON.parse(msg.data);
+              playersRender(message.Players);
             }
 
             $("#ready").click( function(){
-                $.ajax('/ready', {data: ""});
+                $("#ready").addClass('active');
+                $("#quit").removeClass('active');
+                $("#watch").removeClass('active');
+                generate();
+                $.ajax('/ready');
+                $("#myCanvas").show();
             });
-            $("#quit").click( function(){
-                $.ajax('/leave', {data: ""});
+            $("#quit" ).click( function(){
+                $("#quit").addClass('active');
+                $("#watch").removeClass('active');
+                $("#ready").removeClass('active');
+                $.ajax('/leave');
+                $("#myCanvas").hide();
             });
             $("#watch").click( function(){
-                $.ajax('/watch', {data: ""});
-            });
-
-            var $in = $('#in input').focus();
-            $in.keypress(function(e) {
-                if (e.which != 13 && e.which != 10) {
-                  return;
-                } else {
-                  e.preventDefault();
-                  var msg = $in.val();
-                  $in.val('');
-                  $.ajax('/post', {data: {game: game, msg: msg}});
-                }
+                $("#watch").addClass('active');
+                $("#quit").removeClass('active');
+                $("#ready").removeClass('active');
+                $.ajax('/watch');
             });
         });
     </script>
     <!-- Load the Paper.js library -->
     <script type="text/javascript" src="/js/paper-full.js"></script>
+    <script type="text/javascript" src="/js/nertz.js"></script>
     <!-- Define inlined PaperScript associate it with myCanvas -->
     <script type="text/javascript" src="/js/myScript.js"></script>
 

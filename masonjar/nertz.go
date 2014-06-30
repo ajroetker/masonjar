@@ -5,10 +5,23 @@ import (
     "encoding/json"
 )
 
+type Move struct {
+    To int
+    Card Card
+}
+
 type CardGame struct {
     LakeChan chan []Card
     // Scores is a map from a players name to their score
     Scores map[string]int
+}
+
+func init() {
+    game := new(CardGame)
+    // Register our handlers with the http package.
+    // http.HandleFunc("/restart", game.MakeRestartHandler() )
+    http.HandleFunc("/move", game.MakeMoveHandler() )
+    // http.HandleFunc("/begin", game.MakeBeginHandler() )
 }
 
 func NewLake(numPlayers int) []Card {
@@ -69,22 +82,17 @@ func (game *CardGame) restart(them []Player) map[string]int {
     return finalScore
 }
 
-func get(w http.ResponseWriter, r *http.Request) {
-}
+// func (cg *CardGame) MakeRestartHandler() func(w http.ResponseWriter, r *http.Request)
+// func (cg *CardGame) MakeBeginHandler() func(w http.ResponseWriter, r *http.Request)
 
-type Move struct {
-    To int
-    Card Card
-}
+func (cg *CardGame) MakeMoveHandler() func(w http.ResponseWriter, r *http.Request) {
+    return func(w http.ResponseWriter, r *http.Request) {
+        data := new(Move)
+        dec := json.NewDecoder(r.Body)
+        dec.Decode(&data)
 
-func move(w http.ResponseWriter, r *http.Request) {
-    //TODO wrap this fn
-    univ := new(CardGame)
-    data := new(Move)
-    dec := json.NewDecoder(r.Body)
-    dec.Decode(&data)
-
-    w.Header().Set("Content-Type", "application/json")
-    enc := json.NewEncoder(w)
-    enc.Encode( map[string]bool{ "Valid": univ.attemptMove( data.Card, data.To ) })
+        w.Header().Set("Content-Type", "application/json")
+        enc := json.NewEncoder(w)
+        enc.Encode( map[string]bool{ "Valid": cg.attemptMove( data.Card, data.To ) })
+    }
 }
