@@ -7,6 +7,7 @@ import (
     "appengine/user"
     "net/http"
     "encoding/json"
+    "appengine/memcache"
 )
 
 type Board struct {
@@ -19,43 +20,93 @@ type Board struct {
 func init() {
     // Register our handlers with the http package.
     http.HandleFunc("/generate", generate)
+    http.HandleFunc("/reset", reset)
+    http.HandleFunc("/save", save)
+}
+
+func reset(w http.ResponseWriter, r *http.Request) {
+    c := appengine.NewContext(r)
+    u := user.Current(c)
+    board := DealCards(NewShuffledDeck(u.String()))
+    err := memcache.JSON.Set(c, &memcache.Item{
+        Key: u.String(), Object: board,
+    })
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+    w.Header().Set("Content-Type", "application/json")
+    enc := json.NewEncoder(w)
+    enc.Encode(board)
 }
 
 func generate(w http.ResponseWriter, r *http.Request) {
     c := appengine.NewContext(r)
     u := user.Current(c)
 
-    data := new(Move)
-    dec := json.NewDecoder(r.Body)
-    dec.Decode(&data)
+    var board Board
 
+    _, err := memcache.JSON.Get(c, u.String(), &board)
+    if err != nil && err != memcache.ErrCacheMiss {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+    if err == memcache.ErrCacheMiss {
+        board = DealCards(NewShuffledDeck(u.String()))
+        err := memcache.JSON.Set(c, &memcache.Item{
+            Key: u.String(), Object: board,
+        })
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+    }
+    c.Infof("%v", board)
     w.Header().Set("Content-Type", "application/json")
     enc := json.NewEncoder(w)
-    enc.Encode(DealCards(NewShuffledDeck(u.String())))
+    enc.Encode(board)
+}
+
+func save(w http.ResponseWriter, r *http.Request) {
+    c := appengine.NewContext(r)
+    u := user.Current(c)
+
+    board := new(Board)
+    dec := json.NewDecoder(r.Body)
+    dec.Decode(&board)
+    err := memcache.JSON.Set(c, &memcache.Item{
+        Key: u.String(), Object: board,
+    })
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
 }
 
 func DealCards(deck <-chan Card) Board {
-    nertz  := make([]Card, 13)
-    stream := make([]Card, 35)
+    show := make([]Card, 0)
     river  := make([][]Card, 4)
     for pile := range river {
         river[pile] = make([]Card, 1)
-        river[pile][0] = <-deck
+        DealToArray(deck, river[pile])
     }
-    show   := make([]Card, 0)
-    for index := range nertz {
-        nertz[index] = <-deck
-    }
-    for index := range stream {
-        stream[index] = <-deck
-    }
+    nertz  := make([]Card, 13)
+    DealToArray(deck, nertz)
+    stream := make([]Card, 35)
+    DealToArray(deck, stream)
     board := Board{
-        Nertz:  nertz,
+        Nertz: nertz,
         Stream: stream,
-        River:  river,
-        Show:   show,
+        River: river,
+        Show: show,
     }
     return board
+}
+
+func DealToArray(deck <-chan Card, array []Card) {
+    for index := range array {
+        array[index] = <-deck
+    }
 }
 
 func NewShuffledDeck( name string ) <-chan Card {

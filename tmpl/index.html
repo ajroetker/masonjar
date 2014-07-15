@@ -48,26 +48,41 @@
           <div class="row">
             <div class="row">
               <p class="lead">
-                <a id="ready" class="btn btn-lg btn-success">Ready</a>
-                <a id="watch" class="btn btn-lg btn-primary">Watch</a>
-                <a id="quit" class="btn btn-lg btn-danger">Quit</a>
+              <a id="ready" class="btn btn-lg btn-success">Ready</a>
+              <a id="watch" class="btn btn-lg btn-primary">Watch</a>
+              <a id="quit" class="btn btn-lg btn-danger">Quit</a>
               </p>
             </div><!-- /.row -->
-            <div id="boardGame" class="row" >
-              <div class="inner cover col-lg-12">
-                <canvas id="myCanvas" style="background-color: #555; border: 2px
-                  solid; border-radius: 7px; border-color: #222;" width="425px" height="250px"></canvas>
+            <div id="lake-row" class="row">
+              <div id="lake" class="inner cover col-lg-12">
+              </div><!-- /.info-table -->
+            </div><!-- /.row -->
+            <div id="boardGame" class="row col-lg-8" >
+              <div id="river" style="padding-bottom: 20px;">
+                <div id="pile0" style="display:inline;float:left;"></div>
+                <div id="pile1" style="display:inline;float:left;"></div>
+                <div id="pile2" style="display:inline;float:left;"></div>
+                <div id="pile3" style="display:inline;float:left;"></div>
+                <div id="nertz" style="display:inline;float:left;"></div>
+              </div>
+              <div style="padding-top: 20px;">
+                <div id="show"   style="display:inline;float:left;"></div>
+                <div id="stream" style="display:inline;float:left;"></div>
               </div>
             </div><!-- /.row -->
+            <div id="players-table" class="inner cover col-lg-4">
+              <h4 class="sidebar-heading">Current Players</h4>
+              <div id="info-table">
+                <table class="table table-condensed">
+                  <tbody id="players" style="color:black;"></tbody>
+                </table>
+              </div><!-- /.info-table -->
+            </div><!-- /.players-table -->
             <div class="row">
-              <div id="players-table" class="inner cover col-sm-12">
-                <h4 class="sidebar-heading">Current Players</h4>
-                <div id="info-table">
-                  <table class="table table-condensed">
-                    <tbody id="players" style="color:black;"></tbody>
-                  </table>
-                </div><!-- /.info-table -->
-              </div><!-- /.players-table -->
+              <p style="padding-top: 20px" class="lead">
+              <a id="save" class="btn btn-lg btn-info">Save</a>
+              <a id="reset" class="btn btn-lg btn-warning">Reset</a>
+              </p>
             </div><!-- /.row -->
           </div><!-- /.row -->
 
@@ -93,21 +108,38 @@
     <!-- Latest compiled and minified JavaScript -->
     <script src="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
     <script src="/_ah/channel/jsapi"></script>
+    <script type="text/javascript" src="/js/nertz.js"></script>
     <script>
         $(function() {
-            var game = '{{js .Game}}';
             var token = '{{js .Token}}';
+            var board;
 
             var generate = function() {
               $.ajax({
                 url: '/generate',
                 dataType: 'json',
                 success: function(data) {
-                  var board = new Board(data);
+                  board = new Board(data);
                   board.render();
                 },
               });
             };
+
+            var reset = function() {
+              $.ajax({
+                url: '/reset',
+                dataType: 'json',
+                success: function(data) {
+                  board = new Board(data);
+                  board.render();
+                },
+              });
+            };
+
+            var statusClasses = {
+              0: { activity: "danger",  icon: "glyphicon glyphicon-remove" },
+              1: { activity: "success", icon: "glyphicon glyphicon-ok" },
+              2: { activity: "info",    icon: "glyphicon glyphicon-search" }}
 
             var playersRender = function(players) {
               // Clear the table
@@ -115,64 +147,72 @@
               body.remove();
               // Replace with everything new
               $.each( players, function( index, player ) {
-                  var activity, iconname;
-                  switch (player.Status) {
-                  case 1:
-                    activity = "success";
-                    iconname = "glyphicon glyphicon-ok";
-                    break;
-                  case 0:
-                    activity = "danger";
-                    iconname = "glyphicon glyphicon-remove";
-                    break;
-                  default:
-                    activity = "info";
-                    iconname = "glyphicon glyphicon-search";
-                    break;
-                  }
+                  var activity = statusClasses[player.Status].activity;
+                  var iconname = statusClasses[player.Status].icon;
                   $("#players").append( $('<tr></tr>').addClass(activity)
                     .append( $('<td />').text(player.Name) )
                     .append( $('<td></td>').append( $('<span />').css("color", "black").addClass(iconname))));
               });
             };
 
-            $("#myCanvas").hide();
+            var lakeRender = function(cards) {
+              // Clear the table
+              var body = $("#lake img");
+              body.remove();
+              // Replace with everything new
+                $.each( cards, function( index, card ) {
+                    if ( card.Value ) {
+                      var value = values[card.Value];
+                      if ( !value ) {
+                          value = card.Value;
+                      }
+                      var src = "/nicubunu_White_deck_" + value + "_of_" + cardChars[card.Suit].suit + ".svg";
+                      img = $('<img src="http://openclipart.org/people/nicubunu' + src + '" />');
+                      $('#lake').append(img);
+                    }
+                });
+            };
 
             var chan = new goog.appengine.Channel(token);
             var sock = chan.open();
             sock.onmessage = function(msg) {
               var message = JSON.parse(msg.data);
-              playersRender(message.Players);
+              if ( message.Players ) { playersRender(message.Players) };
+              if ( message.Lake ) { lakeRender( message.Lake ) };
             }
+            $("#save").hide();
+            $("#reset").hide();
 
             $("#ready").click( function(){
-                $("#ready").addClass('active');
-                $("#quit").removeClass('active');
-                $("#watch").removeClass('active');
                 generate();
-                $.ajax('/ready');
-                $("#myCanvas").show();
+                $.ajax('/status', { data: {status: 1 } } );
+                $("#save").show();
+                $("#reset").show();
+                $("#quit").hide();
+                $("#watch").hide();
+                $("#ready").hide();
             });
             $("#quit" ).click( function(){
-                $("#quit").addClass('active');
-                $("#watch").removeClass('active');
-                $("#ready").removeClass('active');
-                $.ajax('/leave');
-                $("#myCanvas").hide();
+                reset();
+                $.ajax('/status', { data: {status: 0 } } );
             });
             $("#watch").click( function(){
-                $("#watch").addClass('active');
-                $("#quit").removeClass('active');
-                $("#ready").removeClass('active');
-                $.ajax('/watch');
+                $.ajax('/status', { data: {status: 2 } } );
+            });
+
+            $("#save").click( function(){
+              $.ajax({
+                type: "POST",
+                url: '/save',
+                data: JSON.stringify(board),
+              });
+            });
+
+            $("#reset").click( function(){
+                reset();
             });
         });
     </script>
-    <!-- Load the Paper.js library -->
-    <script type="text/javascript" src="/js/paper-full.js"></script>
-    <script type="text/javascript" src="/js/nertz.js"></script>
-    <!-- Define inlined PaperScript associate it with myCanvas -->
-    <script type="text/javascript" src="/js/myScript.js"></script>
 
   </body>
 </html>

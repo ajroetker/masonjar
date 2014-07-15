@@ -5,6 +5,7 @@ import (
     "appengine/user"
     "net/http"
     "html/template"
+    "strconv"
 )
 
 type tmplData struct{
@@ -14,9 +15,7 @@ type tmplData struct{
 func init() {
     // Register our handlers with the http package.
     http.HandleFunc("/", start)
-    http.HandleFunc("/leave", MakeServePlayerStatusChanges(0) )
-    http.HandleFunc("/ready", MakeServePlayerStatusChanges(1) )
-    http.HandleFunc("/watch", MakeServePlayerStatusChanges(2) )
+    http.HandleFunc("/status", changeStatus )
 }
 
 // HTML template.
@@ -72,34 +71,43 @@ func start(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func MakeServePlayerStatusChanges( status int ) func (w http.ResponseWriter, r *http.Request) {
-    return func (w http.ResponseWriter, r *http.Request) {
-        c := appengine.NewContext(r)
-        u := user.Current(c)
+func changeStatus(w http.ResponseWriter, r *http.Request) {
+    c := appengine.NewContext(r)
+    u := user.Current(c)
 
-        // Get or create the Game.
-        game, err := getGame(c, "nertz")
-        if err != nil {
-            http.Error(w, err.Error(), 500)
-            return
-        }
+    // Get or create the Game.
+    game, err := getGame(c, "nertz")
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
 
-        err = game.SetPlayerStatus(c, u.String(), status)
-        if err != nil {
-            http.Error(w, err.Error(), 500)
-            return
-        }
+    // Status
+    // -------------
+    // not ready : 0
+    // ready     : 1
+    // watch     : 2
+    status, err := strconv.Atoi(r.FormValue("status"))
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
 
-        players, err :=  game.GetPlayers(c)
-        if err != nil {
-            http.Error(w, err.Error(), 500)
-            return
-        }
-        // Send the current players the new list
-        err = game.Send(c, Message{ Players : players } )
-        if err != nil {
-            http.Error(w, err.Error(), 500)
-            return
-        }
+    err = game.SetPlayerStatus(c, u.String(), status)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+
+    players, err :=  game.GetPlayers(c)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+    // Send the current players the new list
+    err = game.Send(c, Message{ Players : players } )
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
     }
 }

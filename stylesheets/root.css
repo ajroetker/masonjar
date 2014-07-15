@@ -17,6 +17,12 @@ html {
 #in input {
     width: 235px;
 }
+#lake img {
+    height: 70px;
+}
+#boardGame div img {
+    height: 70px;
+}
 #log div {
     padding: 4px;
 }
@@ -25,7 +31,7 @@ html {
     overflow: scroll;
 }
 #info-table {
-    height: 300px;
+    height: 150px;
     overflow: scroll;
 }
 

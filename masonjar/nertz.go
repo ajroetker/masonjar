@@ -3,6 +3,7 @@ package masonjar
 import (
     "net/http"
     "encoding/json"
+    "appengine"
 )
 
 type Move struct {
@@ -21,7 +22,7 @@ func init() {
     // Register our handlers with the http package.
     // http.HandleFunc("/restart", game.MakeRestartHandler() )
     http.HandleFunc("/move", game.MakeMoveHandler() )
-    // http.HandleFunc("/begin", game.MakeBeginHandler() )
+    http.HandleFunc("/begin", MakeBeginHandler() )
 }
 
 func NewLake(numPlayers int) []Card {
@@ -33,7 +34,7 @@ func NewLake(numPlayers int) []Card {
 }
 
 func initGame(them []Player) *CardGame {
-    var scores map[string]int
+    var scores = make(map[string]int)
     for _, player := range them {
         scores[player.Name] = 0
     }
@@ -83,6 +84,37 @@ func (game *CardGame) restart(them []Player) map[string]int {
 }
 
 // func (cg *CardGame) MakeRestartHandler() func(w http.ResponseWriter, r *http.Request)
+func MakeBeginHandler() func(w http.ResponseWriter, r *http.Request) {
+    board := new(CardGame)
+    return func(w http.ResponseWriter, r *http.Request) {
+        c := appengine.NewContext(r)
+
+        // Get or create the Game.
+        game, err := getGame(c, "nertz")
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+
+        // Create a list of players to display
+        players, err := game.GetPlayers(c)
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+
+        board = initGame(players);
+        lake := <-board.LakeChan
+        board.LakeChan<-lake
+
+        // Send the current players the new list
+        err = game.Send(c, Message{ Lake : lake } )
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+    }
+}
 // func (cg *CardGame) MakeBeginHandler() func(w http.ResponseWriter, r *http.Request)
 
 func (cg *CardGame) MakeMoveHandler() func(w http.ResponseWriter, r *http.Request) {

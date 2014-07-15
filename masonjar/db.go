@@ -76,16 +76,6 @@ func (g *Game) SetPlayerStatus(c appengine.Context, id string, status int) error
     return err
 }
 
-func (g *Game) WatcherPlayer(c appengine.Context, id string) error {
-    client := &Player{ Name: id, Status: 2 }
-    _, err := datastore.Put(c, client.Key(c, g), client)
-
-    // Purge the now-invalid cache record (if it exists).
-    memcache.Delete(c, g.Id)
-
-    return err
-}
-
 func (g *Game) RemovePlayer(c appengine.Context, id string) error {
     client := &Player{ Name: id }
     err := datastore.Delete(c, client.Key(c, g) )
@@ -127,6 +117,7 @@ func (g *Game) GetPlayers(c appengine.Context) ( []Player, error ) {
 type Message struct{
     Text string
     Players []Player
+    Lake []Card
     Error string
 }
 
@@ -139,7 +130,7 @@ func (g *Game) Send(c appengine.Context, message Message) error {
     }
 
     if err == memcache.ErrCacheMiss {
-        q := datastore.NewQuery("Client").Ancestor(g.Key(c))
+        q := datastore.NewQuery("Player").Ancestor(g.Key(c))
         _, err = q.GetAll(c, &clients)
         if err != nil {
             return err
