@@ -58,17 +58,13 @@
               </div><!-- /.info-table -->
             </div><!-- /.row -->
             <div id="boardGame" class="row col-lg-8" >
-              <div id="river" style="padding-bottom: 20px;">
-                <div id="pile0" style="display:inline;float:left;"></div>
-                <div id="pile1" style="display:inline;float:left;"></div>
-                <div id="pile2" style="display:inline;float:left;"></div>
-                <div id="pile3" style="display:inline;float:left;"></div>
-                <div id="nertz" style="display:inline;float:left;"></div>
-              </div>
-              <div style="padding-top: 20px;">
-                <div id="show"   style="display:inline;float:left;"></div>
-                <div id="stream" style="display:inline;float:left;"></div>
-              </div>
+              <div id="pile0"  style="display:inline;float:left;"></div>
+              <div id="pile1"  style="display:inline;float:left;"></div>
+              <div id="pile2"  style="display:inline;float:left;"></div>
+              <div id="pile3"  style="display:inline;float:left;"></div>
+              <div id="nertz"  style="display:inline;float:left;"></div>
+              <div id="show"   style=""></div>
+              <div id="stream" style=""></div>
             </div><!-- /.row -->
             <div id="players-table" class="inner cover col-lg-4">
               <h4 class="sidebar-heading">Current Players</h4>
@@ -139,7 +135,8 @@
             var statusClasses = {
               0: { activity: "danger",  icon: "glyphicon glyphicon-remove" },
               1: { activity: "success", icon: "glyphicon glyphicon-ok" },
-              2: { activity: "info",    icon: "glyphicon glyphicon-search" }}
+              2: { activity: "info",    icon: "glyphicon glyphicon-search" }
+            }
 
             var playersRender = function(players) {
               // Clear the table
@@ -162,12 +159,7 @@
               // Replace with everything new
                 $.each( cards, function( index, card ) {
                     if ( card.Value ) {
-                      var value = values[card.Value];
-                      if ( !value ) {
-                          value = card.Value;
-                      }
-                      var src = "/nicubunu_White_deck_" + value + "_of_" + cardChars[card.Suit].suit + ".svg";
-                      img = $('<img src="http://openclipart.org/people/nicubunu' + src + '" />');
+                      img = cardImg( cardChars[card.Suit].suit, values[card.Value] )
                       $('#lake').append(img);
                     }
                 });
