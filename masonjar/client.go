@@ -61,7 +61,6 @@ func generate(w http.ResponseWriter, r *http.Request) {
             return
         }
     }
-    c.Infof("%v", board)
     w.Header().Set("Content-Type", "application/json")
     enc := json.NewEncoder(w)
     enc.Encode(board)

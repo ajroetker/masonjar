@@ -53,20 +53,18 @@
               <a id="quit" class="btn btn-lg btn-danger">Quit</a>
               </p>
             </div><!-- /.row -->
-            <div id="lake-row" class="row">
-              <div id="lake" class="inner cover col-lg-12">
-              </div><!-- /.info-table -->
+            <div id="lake" class="row col-lg-12">
+            </div><!-- /.lake -->
+            <div id="boardGame" class="row col-lg-12" >
+              <div id="river0" class="pile" ></div>
+              <div id="river1" class="pile" ></div>
+              <div id="river2" class="pile" ></div>
+              <div id="river3" class="pile" ></div>
+              <div id="nertz"  class="pile" ></div>
+              <div id="show"   class="pile" ></div>
+              <div id="stream" class="pile" ></div>
             </div><!-- /.row -->
-            <div id="boardGame" class="row col-lg-8" >
-              <div id="pile0"  style="display:inline;float:left;"></div>
-              <div id="pile1"  style="display:inline;float:left;"></div>
-              <div id="pile2"  style="display:inline;float:left;"></div>
-              <div id="pile3"  style="display:inline;float:left;"></div>
-              <div id="nertz"  style="display:inline;float:left;"></div>
-              <div id="show"   style=""></div>
-              <div id="stream" style=""></div>
-            </div><!-- /.row -->
-            <div id="players-table" class="inner cover col-lg-4">
+            <div id="players-table" class="col-lg-12">
               <h4 class="sidebar-heading">Current Players</h4>
               <div id="info-table">
                 <table class="table table-condensed">
@@ -75,10 +73,8 @@
               </div><!-- /.info-table -->
             </div><!-- /.players-table -->
             <div class="row">
-              <p style="padding-top: 20px" class="lead">
               <a id="save" class="btn btn-lg btn-info">Save</a>
               <a id="reset" class="btn btn-lg btn-warning">Reset</a>
-              </p>
             </div><!-- /.row -->
           </div><!-- /.row -->
 
@@ -152,19 +148,6 @@
               });
             };
 
-            var lakeRender = function(cards) {
-              // Clear the table
-              var body = $("#lake img");
-              body.remove();
-              // Replace with everything new
-                $.each( cards, function( index, card ) {
-                    if ( card.Value ) {
-                      img = cardImg( cardChars[card.Suit].suit, values[card.Value] )
-                      $('#lake').append(img);
-                    }
-                });
-            };
-
             var chan = new goog.appengine.Channel(token);
             var sock = chan.open();
             sock.onmessage = function(msg) {
@@ -172,6 +155,61 @@
               if ( message.Players ) { playersRender(message.Players) };
               if ( message.Lake ) { lakeRender( message.Lake ) };
             }
+
+            var lakeRender = function(cards) {
+                // Clear the table
+                var body = $("#lake div");
+                body.remove();
+                // Replace with everything new
+                $.each( cards, function( index, card ) {
+                    var pileContainer =  $('<div/>').attr( 'id', 'lake' + index )
+                                                    .addClass('pile');
+                    $('#lake').append( pileContainer );
+                    var img;
+                    var dropFn;
+                    if ( card.Value ) {
+                        img = cardImg( cardChars[card.Suit].suit, values[card.Value] );
+                        $('#lake' + index).append(img);
+                    } else {
+                        img = cardImgBack();
+                        $('#lake' + index).append(img);
+                    };
+                    img.css('top', parseInt(pileContainer.css('padding'))).droppable({
+                        accept:
+                            function(dropped){
+                                return dropped.attr('id') === ( cardChars[( card.Suit % 2 ) + 1].suit + values[card.Value + 1] ) ||
+                                       dropped.attr('id') === ( cardChars[( card.Suit % 2 ) + 3].suit + values[card.Value + 1] ) ;
+                            },
+                        drop: function(event, ui) {
+                            $( event.target ).droppable('disable');
+                            var pile = $( event.toElement ).data('pile');
+                            var droppedCard;
+                            switch ( pile ) {
+                                case 'river':
+                                    var riverPileNum = parseInt($( event.toElement ).data('river'));
+                                    droppedCard = board.river[riverPileNum].pop();
+                                    break;
+                                case 'nertz':
+                                    droppedCard = board.nertz.pop();
+                                    break;
+                                case 'show':
+                                    droppedCard = board.show.pop();
+                                    break;
+                            }
+                            $.ajax({
+                              url: '/move',
+                              type: 'POST',
+                              data: JSON.stringify({ Card: droppedCard, To: index }),
+                              success: function(data) {
+                                console.log(data);
+                              }
+                            });
+                            board.render();
+                        }
+                    });
+                });
+            };
+
             $("#save").hide();
             $("#reset").hide();
 
@@ -183,6 +221,7 @@
                 $("#quit").hide();
                 $("#watch").hide();
                 $("#ready").hide();
+                $.ajax('/begin');
             });
             $("#quit" ).click( function(){
                 reset();

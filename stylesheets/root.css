@@ -17,12 +17,6 @@ html {
 #in input {
     width: 235px;
 }
-#lake img {
-    height: 70px;
-}
-#boardGame div img {
-    height: 70px;
-}
 #log div {
     padding: 4px;
 }
@@ -34,7 +28,35 @@ html {
     height: 150px;
     overflow: scroll;
 }
-
+.card {
+    position: absolute;
+    left: 10%;
+    width: 80%;
+    height: auto;
+}
+.pile {
+    position: relative;
+    float: left;
+    padding: 0.1%;
+    width: 12.5%;
+    height: 100%;
+}
+#lake {
+    height: 200px;
+    padding: 40px;
+}
+#boardGame .pile {
+    left: 25px;
+}
+#boardGame {
+    height: 200px;
+    padding: 25px;
+}
 #players-table {
     overflow: scroll;
+    height: 300px;
+}
+.players {
+    vertical-align: middle;
+    padding: 100px 20px;
 }

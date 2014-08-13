@@ -6,6 +6,8 @@ import (
     "appengine"
 )
 
+var game *CardGame = NewGame()
+
 type Move struct {
     To int
     Card Card
@@ -18,11 +20,9 @@ type CardGame struct {
 }
 
 func init() {
-    game := new(CardGame)
     // Register our handlers with the http package.
-    // http.HandleFunc("/restart", game.MakeRestartHandler() )
-    http.HandleFunc("/move", game.MakeMoveHandler() )
-    http.HandleFunc("/begin", MakeBeginHandler() )
+    http.HandleFunc("/move",  HandleMove )
+    http.HandleFunc("/begin", HandleBegin )
 }
 
 func NewLake(numPlayers int) []Card {
@@ -33,20 +33,23 @@ func NewLake(numPlayers int) []Card {
     return lake
 }
 
-func initGame(them []Player) *CardGame {
-    var scores = make(map[string]int)
-    for _, player := range them {
-        scores[player.Name] = 0
-    }
+func NewGame() *CardGame {
     lakeChan := make(chan []Card, 1)
-    lakeChan <- NewLake(len(them))
+    scores   := make(map[string]int)
     return &CardGame{
         LakeChan : lakeChan,
         Scores   : scores,
     }
 }
 
-func (game *CardGame) attemptMove(card Card, pile int) bool {
+func (cg *CardGame) init(them []Player) {
+    for _, player := range them {
+        cg.Scores[player.Name] = 0
+    }
+    cg.LakeChan <- NewLake(len(them))
+}
+
+func (game *CardGame) attemptMove(c appengine.Context, card Card, pile int) bool {
     select {
     case lake := <-game.LakeChan:
         top := lake[pile]
@@ -83,48 +86,45 @@ func (game *CardGame) restart(them []Player) map[string]int {
     return finalScore
 }
 
-// func (cg *CardGame) MakeRestartHandler() func(w http.ResponseWriter, r *http.Request)
-func MakeBeginHandler() func(w http.ResponseWriter, r *http.Request) {
-    board := new(CardGame)
-    return func(w http.ResponseWriter, r *http.Request) {
-        c := appengine.NewContext(r)
+func HandleBegin(w http.ResponseWriter, r *http.Request) {
+    c := appengine.NewContext(r)
 
-        // Get or create the Game.
-        game, err := getGame(c, "nertz")
-        if err != nil {
-            http.Error(w, err.Error(), 500)
-            return
-        }
+    // Get or create the Game.
+    board, err := getGame(c, "nertz")
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
 
-        // Create a list of players to display
-        players, err := game.GetPlayers(c)
-        if err != nil {
-            http.Error(w, err.Error(), 500)
-            return
-        }
+    // Create a list of players to display
+    players, err := board.GetPlayers(c)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
 
-        board = initGame(players);
-        lake := <-board.LakeChan
-        board.LakeChan<-lake
+    game.init(players)
+    lake := <-game.LakeChan
+    game.LakeChan<-lake
+    c.Infof("%v", game)
 
-        // Send the current players the new list
-        err = game.Send(c, Message{ Lake : lake } )
-        if err != nil {
-            http.Error(w, err.Error(), 500)
-            return
-        }
+    // Send the current players the new list
+    err = board.Send(c, Message{ Lake : lake } )
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
     }
 }
-// func (cg *CardGame) MakeBeginHandler() func(w http.ResponseWriter, r *http.Request)
 
-func (cg *CardGame) MakeMoveHandler() func(w http.ResponseWriter, r *http.Request) {
-    return func(w http.ResponseWriter, r *http.Request) {
-        data := new(Move)
-        dec := json.NewDecoder(r.Body)
-        dec.Decode(&data)
+func HandleMove(w http.ResponseWriter, r *http.Request) {
+    c := appengine.NewContext(r)
+    c.Infof("%v", game)
 
-        w.Header().Set("Content-Type", "application/json")
-        enc := json.NewEncoder(w)
-        enc.Encode( map[string]bool{ "Valid": cg.attemptMove( data.Card, data.To ) })
-    }
+    data := new(Move)
+    dec := json.NewDecoder(r.Body)
+    dec.Decode(&data)
+
+    w.Header().Set("Content-Type", "application/json")
+    enc := json.NewEncoder(w)
+    enc.Encode( map[string]bool{ "Valid": game.attemptMove( c, data.Card, data.To ) })
 }
