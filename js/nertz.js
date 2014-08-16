@@ -1,24 +1,65 @@
-var cardChars = {
-    1 : { spec: '\u2660', color: 'black', suit: 'spades' },
-    2 : { spec: '\u2665', color: '#780000', suit: 'hearts' },
-    3 : { spec: '\u2663', color: 'black', suit: 'clubs' },
-    4 : { spec: '\u2666', color: '#780000', suit: 'diamonds' },
+var suits = {
+    1 : 'spades',
+    2 : 'hearts',
+    3 : 'clubs',
+    4 : 'diamonds',
+}
+var values = {
+    1  : 'Ace',
+    2  : '2',
+    3  : '3',
+    4  : '4',
+    5  : '5',
+    6  : '6',
+    7  : '7',
+    8  : '8',
+    9  : '9',
+    10 : '10',
+    11 : 'Jack',
+    12 : 'Queen',
+    13 : 'King'
 }
 
-var values = {
-    1: 'Ace',
-    2: '2',
-    3: '3',
-    4: '4',
-    5: '5',
-    6: '6',
-    7: '7',
-    8: '8',
-    9: '9',
-    10: '10',
-    11: 'Jack',
-    12: 'Queen',
-    13: 'King'
+var suitsRev = {
+    'spades'   : 1,
+    'hearts'   : 2,
+    'clubs'    : 3,
+    'diamonds' : 4,
+}
+var valuesRev = {
+    'Ace'   : 1,
+    '2'     : 2,
+    '3'     : 3,
+    '4'     : 4,
+    '5'     : 5,
+    '6'     : 6,
+    '7'     : 7,
+    '8'     : 8,
+    '9'     : 9,
+    '10'    : 10,
+    'Jack'  : 11,
+    'Queen' : 12,
+    'King'  : 13,
+}
+
+var idParserMap = {
+    'd' : 'diamonds',
+    'h' : 'hearts',
+    's' : 'spades',
+    'c' : 'clubs',
+}
+
+function cardifyId( id ){
+    var suitStr = idParserMap[ id[0] ];
+    //Doesn't quite work
+    var valueStr = id.slice( suitStr.length, id.length );
+    var card = {
+        Suit  : suitsRev[ suitStr ],
+        Value : valuesRev[ valueStr ],
+        //Figure out a good way to do this
+        Owner : 'test@example.com',
+    }
+    return card
 }
 
 function cardImg(suit, value) {
@@ -33,32 +74,45 @@ function cardImgBack() {
              'nicubunu/nicubunu_Card_backs_simple_blue.svg" />');
 }
 
+function padding( element ){
+    return parseFloat( element.css('padding') );
+}
+
+function height( element ){
+    return parseFloat( element.height() );
+}
+
+function width( element ){
+    return parseFloat( element.width() );
+}
+
+function lastElement( array ){
+    return array[ array.length - 1 ];
+}
+
 function Board(object) {
     this.nertz  = object.Nertz;
-    this.renderNertz = function( globalPosition ) {
+    this.renderNertz = function() {
         var nertzPileLength = this.nertz.length;
         $.each( this.nertz, function( index, card ) {
             if ( card.Value ) {
+                var topPos = index * height( $( '.card' ) ) * 0.03 ;
                 if (index < nertzPileLength - 1) {
                     img = cardImgBack();
                     $('#nertz').append( img );
-                    var topsPos;
-                    if (index) {
-                      topPos = index * parseFloat(img.height()) * 0.03 ;
-                    } else {
-                      topPos = $('#nertz').css('padding');
+                    if ( index === 0 ) {
+                      topPos = padding( $('.pile') );
                     };
                     img.css( 'top', topPos )
                        .data('pile', 'nertz');
                 } else {
-                    img = cardImg( cardChars[card.Suit].suit, values[card.Value] );
+                    img = cardImg( suits[card.Suit], values[card.Value] );
                     $('#nertz').append(img);
-                    var topPos = index * parseFloat( $('.card').height()) * 0.03 ;
                     img.css( 'top', topPos )
                        .data('pile', 'nertz');
                     img.draggable({
                         revert: 'invalid',
-                        stack: '#boardGame div',
+                        zIndex: 100,
                     });
                 };
             }
@@ -66,41 +120,40 @@ function Board(object) {
     };
     this.stream = object.Stream;
     this.river  = object.River;
-    this.renderRiver = function( globalPosition ) {
+    this.renderRiver = function() {
         var board = this;
         $.each( this.river, function( jndex, cards ) {
             if (cards.length === 0) {
+                // Replace this with an arbitrary droppable
                 board.river[jndex].push( board.nertz.pop() );
             };
             $.each( cards, function( index, card ) {
                 if ( card.Value ) {
-                    img = cardImg( cardChars[card.Suit].suit, values[card.Value] );
-                    $('#river' + jndex).append(img);
-                    var topsPos;
-                    if (index) {
-                      topPos = index * parseFloat(img.height()) * 0.25 ;
-                    } else {
-                      topPos = $('#river' + jndex ).css('padding');
+                    img = cardImg( suits[card.Suit], values[card.Value] );
+                    $( '#river' + jndex ).append(img);
+                    var topPos = index * height( $( '.card' ) ) * 0.25 ;
+                    if ( index === 0 ) {
+                      topPos = padding( $('.pile') );
                     };
-                    img.css( 'top', topPos )
+                    img.css( 'top', topPos)
                        .data('pile', 'river')
                        .data('river', jndex)
                        .data('index', index);
                     if ( index === cards.length - 1 ) {
                         img.droppable({
                             accept: function(dropped) {
-                                return dropped.attr('id') === ( cardChars[( card.Suit % 2 ) + 1].suit + values[card.Value - 1] ) ||
-                                       dropped.attr('id') === ( cardChars[( card.Suit % 2 ) + 3].suit + values[card.Value - 1] ) ;
+                                return dropped.attr('id') === ( suits[( card.Suit % 2 ) + 1] + values[card.Value - 1] ) ||
+                                       dropped.attr('id') === ( suits[( card.Suit % 2 ) + 3] + values[card.Value - 1] ) ;
                             },
                             drop: function(event, ui) {
                                 $( event.target ).droppable('disable');
-                                var pile = $( event.toElement ).data('pile');
+                                var toElement = $( event.toElement );
+                                var pile = toElement.data('pile');
                                 var droppedCard;
                                 switch ( pile ) {
                                     case 'river':
-                                        var riverPileNum = parseInt($( event.toElement ).data('river'));
-                                        var riverPile = board.river[riverPileNum];
-                                        var subPileIndex = parseInt($( event.toElement ).data('index'));
+                                        var riverPile = board.river[ parseInt(toElement.data('river')) ];
+                                        var subPileIndex = parseInt(toElement.data('index'));
                                         var subPile = riverPile.slice( subPileIndex, riverPile.length );
                                         subPile.reverse();
                                         while (subPile.length > 0){
@@ -124,22 +177,25 @@ function Board(object) {
                     };
                     img.draggable({
                         revert: 'invalid',
-                        //cursorAt: { left: 5, top: 5 },
                         // Arbitrary to be on top
                         zIndex: 100,
                         helper: function() {
                             var wholePile = $( '#river' + jndex + ' img' ).get();
-                            var w = $( '#river' + jndex ).width();
+                            var w = width( $( '#river' + jndex ) );
                             var slice = wholePile.slice(index, wholePile.length);
-                            var h = ( parseInt( $( '#river' + jndex ).css('padding') ) * 2 )
-                                    + parseFloat( $( slice[0] ).height() )
-                                    + ( ( slice.length - 1 ) * parseFloat( $( slice[0] ).height() ) * 0.25 );
+                            var h = ( padding( $('.pile') ) * 2 )
+                                    + height( $( '.card' ) )
+                                    + ( ( slice.length - 1 ) * height( $( '.card' ) ) * 0.25 );
                             var container =
                                 $('<div/>').attr('id', 'draggingContainer')
                                            .width( w ).height( h );
                             $.each( slice, function( kndex, card ) {
-                                var tmp =
+                                var topPos = kndex * height( $( '.card' ) ) * 0.25 ;
+                                if ( kndex === 0 ) {
+                                    topPos = padding( $('.pile') );
+                                };
                                 $( card ).clone()
+                                         .css( 'top', topPos )
                                          .addClass( 'card' )
                                          .data( 'pile', 'river' )
                                          .data( 'river', jndex )
@@ -157,10 +213,9 @@ function Board(object) {
     this.show   = object.Show;
     this.render = function() {
         $('#boardGame div img').remove();
-        var t = parseFloat( $('.pile').css( 'padding' ) );
-        var gps = { top : t };
-        this.renderRiver(gps);
-        this.renderNertz(gps);
+        var topPadding = padding( $('.pile') );
+        this.renderRiver();
+        this.renderNertz();
         var streamPileLength = this.stream.length;
         var board = this;
         if ( this.stream[0] ) {
@@ -168,7 +223,7 @@ function Board(object) {
                 if ( card.Value ) {
                     img = cardImgBack();
                     $('#stream').append(img);
-                    img.css( 'top',  gps.top + ( index * 1 ) + "%" )
+                    img.css( 'top',  topPadding + index + "%" )
                        .data('pile', 'stream');
                     if ( index === streamPileLength - 1 ) {
                         img.on( "click", function() {
@@ -191,12 +246,12 @@ function Board(object) {
         };
         $.each( this.show, function( index, card ) {
             if ( card.Value ) {
-                img = cardImg( cardChars[card.Suit].suit, values[card.Value] )
+                img = cardImg( suits[card.Suit], values[card.Value] )
                 $('#show').append(img);
-                img.css( 'top',  gps.top + ( index * 1 ) + "%" )
+                img.css( 'top',  topPadding + index + "%" )
                    .data('pile', 'show');
                 img.draggable({
-                    stack: '#boardGame div',
+                    zIndex: 100,
                     revert: 'invalid',
                 });
             }

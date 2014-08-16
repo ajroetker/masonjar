@@ -162,66 +162,119 @@
                 body.remove();
                 // Replace with everything new
                 $.each( cards, function( index, card ) {
-                    var pileContainer =  $('<div/>').attr( 'id', 'lake' + index )
-                                                    .addClass('pile');
-                    $('#lake').append( pileContainer );
-                    var img;
-                    var dropFn;
+                    $('<div/>').attr( 'id', 'lake' + index )
+                               .addClass('pile')
+                               .appendTo( $('#lake') );
+                    var img, checkValidity;
                     if ( card.Value ) {
-                        img = cardImg( cardChars[card.Suit].suit, values[card.Value] );
-                        $('#lake' + index).append(img);
+                        img = cardImg( suits[card.Suit], values[card.Value] );
+                        checkValidity = function(dropped){
+                          return dropped.attr('id') === ( suits[ card.Suit ] + values[card.Value + 1] ) ;
+                        };
                     } else {
                         img = cardImgBack();
-                        $('#lake' + index).append(img);
+                        checkValidity = function(dropped){
+                          return dropped.attr('id') === ( suits[1] + values[1] ) ||
+                                 dropped.attr('id') === ( suits[2] + values[1] ) ||
+                                 dropped.attr('id') === ( suits[3] + values[1] ) ||
+                                 dropped.attr('id') === ( suits[4] + values[1] ) ;
+                        };
                     };
-                    img.css('top', parseInt(pileContainer.css('padding'))).droppable({
-                        accept:
-                            function(dropped){
-                                return dropped.attr('id') === ( cardChars[( card.Suit % 2 ) + 1].suit + values[card.Value + 1] ) ||
-                                       dropped.attr('id') === ( cardChars[( card.Suit % 2 ) + 3].suit + values[card.Value + 1] ) ;
-                            },
-                        drop: function(event, ui) {
-                            $( event.target ).droppable('disable');
-                            var pile = $( event.toElement ).data('pile');
-                            var droppedCard;
-                            switch ( pile ) {
-                                case 'river':
-                                    var riverPileNum = parseInt($( event.toElement ).data('river'));
-                                    droppedCard = board.river[riverPileNum].pop();
-                                    break;
-                                case 'nertz':
-                                    droppedCard = board.nertz.pop();
-                                    break;
-                                case 'show':
-                                    droppedCard = board.show.pop();
-                                    break;
-                            }
-                            $.ajax({
-                              url: '/move',
-                              type: 'POST',
-                              data: JSON.stringify({ Card: droppedCard, To: index }),
-                              success: function(data) {
-                                console.log(data);
-                              }
-                            });
-                            board.render();
-                        }
+                    img.appendTo( '#lake' + index )
+                       .css('top', padding( $('.pile') ) )
+                       .droppable({
+                          accept: checkValidity,
+                          drop: function(event, ui) {
+                              var toElement = $( event.toElement );
+                              var pile = toElement.data('pile');
+                              var riverPileIndex;
+                              var dropped;
+                              switch ( pile ) {
+                              case 'river' :
+                                riverPileIndex = parseInt( toElement.data('river') );
+                                dropped = lastElement( board.river[ riverPileIndex ] );
+                                break;
+                              case 'nertz' :
+                                dropped = lastElement( board.nertz );
+                                break;
+                              case 'show'  :
+                                dropped = lastElement( board.show );
+                                break;
+                              };
+                              var onSuccess = function(data) {
+                                  if ( data.Valid ) {
+                                    switch (pile) {
+                                    case 'river' :
+                                      board.river[ riverPileIndex ].pop();
+                                      break;
+                                    case 'nertz' :
+                                      board.nertz.pop();
+                                      break;
+                                    case 'show'  :
+                                      board.show.pop();
+                                      break;
+                                    };
+                                  };
+                                  board.render();
+                              };
+                              $.ajax({
+                                url: '/move',
+                                type: 'POST',
+                                data: JSON.stringify({ Card: dropped, To: index }),
+                                dataType: 'json',
+                                success: onSuccess,
+                              });
+
+                          }
                     });
                 });
             };
 
-            $("#save").hide();
-            $("#reset").hide();
+            var changePageStateTo = function( state ){
+              switch( state ){
+                case 'waiting':
+                  $("#save").hide();
+                  $("#reset").hide();
+                  break;
+                case 'playing':
+                  generate();
+                  $.ajax('/status', { data: {status: 1 } } );
+                  $("#save").show();
+                  $("#reset").show();
+                  $("#quit").hide();
+                  $("#watch").hide();
+                  $("#ready").hide();
+                  break;
+                case 'watching':
+                  $("#quit").hide();
+                  $("#watch").hide();
+                  $("#ready").hide();
+                  $("#boardGame").hide();
+                  $.ajax({
+                    url: '/lake',
+                    dataType: 'json',
+                    success: function(data) {
+                      lakeRender(data);
+                    },
+                  });
+                  break;
+                case 'finished':
+                  $("#save").hide();
+                  $("#reset").hide();
+                  $("#quit").show();
+                  $("#watch").show();
+                  $("#ready").show();
+                  break;
+              }
+            }
+
+            changePageStateTo( 'waiting' );
 
             $("#ready").click( function(){
-                generate();
-                $.ajax('/status', { data: {status: 1 } } );
-                $("#save").show();
-                $("#reset").show();
-                $("#quit").hide();
-                $("#watch").hide();
-                $("#ready").hide();
-                $.ajax('/begin');
+                var response = $.ajax({ async: false, url: '/begin', dataType: 'json', });
+                if (response.responseJSON.Valid) {
+                  changePageStateTo( 'playing' );
+                }
             });
             $("#quit" ).click( function(){
                 reset();
@@ -229,6 +282,7 @@
             });
             $("#watch").click( function(){
                 $.ajax('/status', { data: {status: 2 } } );
+                changePageStateTo( 'watching' );
             });
 
             $("#save").click( function(){

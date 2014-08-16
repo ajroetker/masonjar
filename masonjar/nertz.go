@@ -4,9 +4,8 @@ import (
     "net/http"
     "encoding/json"
     "appengine"
+    "appengine/memcache"
 )
-
-var game *CardGame = NewGame()
 
 type Move struct {
     To int
@@ -14,15 +13,24 @@ type Move struct {
 }
 
 type CardGame struct {
-    LakeChan chan []Card
+    Lake []Card
     // Scores is a map from a players name to their score
     Scores map[string]int
 }
 
+func checkReadinessOf( players []Player ) bool {
+    if len(players) == 1 {
+        return players[0].Status != 0
+    }
+    return checkReadinessOf(players[0:len(players)/2]) && checkReadinessOf(players[len(players)/2:])
+}
+
 func init() {
     // Register our handlers with the http package.
-    http.HandleFunc("/move",  HandleMove )
-    http.HandleFunc("/begin", HandleBegin )
+    http.HandleFunc("/move",  move )
+    http.HandleFunc("/begin", begin )
+    http.HandleFunc("/end",   end )
+    http.HandleFunc("/lake",  lake )
 }
 
 func NewLake(numPlayers int) []Card {
@@ -33,60 +41,66 @@ func NewLake(numPlayers int) []Card {
     return lake
 }
 
-func NewGame() *CardGame {
-    lakeChan := make(chan []Card, 1)
-    scores   := make(map[string]int)
-    return &CardGame{
-        LakeChan : lakeChan,
-        Scores   : scores,
+func countReadyPlayers(them []Player) int {
+    var total int = 0
+    for _, player := range them {
+        if player.Status == 1 {
+            total += 1
+        }
     }
+    return total
 }
 
 func (cg *CardGame) init(them []Player) {
+    cg.Scores = make(map[string]int)
     for _, player := range them {
-        cg.Scores[player.Name] = 0
+        if player.Status != 2 {
+            cg.Scores[player.Name] = 0
+        }
     }
-    cg.LakeChan <- NewLake(len(them))
+    numberOfReadyPlayers := countReadyPlayers(them)
+    cg.Lake = NewLake(numberOfReadyPlayers)
 }
 
-func (game *CardGame) attemptMove(c appengine.Context, card Card, pile int) bool {
-    select {
-    case lake := <-game.LakeChan:
-        top := lake[pile]
-        var valid bool;
-        switch {
-        case top.Value == 0 && card.Value == 1:
-            // If the pile is empty we can add an Ace
-            valid = true
-        case card.Value == top.Value + 1 && card.Suit == top.Suit:
-            // Make sure the card has the right value and suit
-            valid = true
-        default:
-            valid = false
-        }
-        if valid {
-            lake[pile] = card
-            game.Scores[card.Owner]++
-        }
-        game.LakeChan<-lake
-        return false
+func (game *CardGame) attemptMove(move Move) bool {
+    card := move.Card
+    pile := move.To
+    top := game.Lake[pile]
+    var valid bool;
+    switch {
+    case top.Value == 0 && card.Value == 1:
+        // If the pile is empty we can add an Ace
+        valid = true
+    case card.Value == top.Value + 1 && card.Suit == top.Suit:
+        // Make sure the card has the right value and suit
+        valid = true
     default:
-        return false
+        valid = false
     }
+    if valid {
+        game.Lake[pile] = card
+        game.Scores[card.Owner]++
+    }
+    return valid
 }
 
-func (game *CardGame) restart(them []Player) map[string]int {
-    <-game.LakeChan
-    finalScore := game.Scores
-    var scores map[string]int
-    for _, player := range them {
-        scores[player.Name] = 0
+func lake(w http.ResponseWriter, r *http.Request) {
+    c := appengine.NewContext(r)
+
+    var cardGame CardGame
+
+    _, err := memcache.JSON.Get(c, "lake::nertz", &cardGame)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
     }
-    game.LakeChan <- NewLake(len(them))
-    return finalScore
+
+    w.Header().Set("Content-Type", "application/json")
+    enc := json.NewEncoder(w)
+    enc.Encode(cardGame.Lake)
 }
 
-func HandleBegin(w http.ResponseWriter, r *http.Request) {
+func begin(w http.ResponseWriter, r *http.Request) {
     c := appengine.NewContext(r)
 
     // Get or create the Game.
@@ -102,29 +116,105 @@ func HandleBegin(w http.ResponseWriter, r *http.Request) {
         http.Error(w, err.Error(), 500)
         return
     }
+    w.Header().Set("Content-Type", "application/json")
+    enc := json.NewEncoder(w)
+    resp := checkReadinessOf(players)
+    enc.Encode( map[string]bool{ "Valid": resp })
 
-    game.init(players)
-    lake := <-game.LakeChan
-    game.LakeChan<-lake
-    c.Infof("%v", game)
+    if resp {
+        var cardGame CardGame
+        cardGame.init(players)
+        err = memcache.JSON.Set(c, &memcache.Item{
+            Key: "lake::nertz", Object: cardGame,
+        })
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
 
-    // Send the current players the new list
-    err = board.Send(c, Message{ Lake : lake } )
+        // Send the current players the new list
+        err = board.Send(c, Message{ Lake : cardGame.Lake } )
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+    }
+}
+
+func move(w http.ResponseWriter, r *http.Request) {
+    c := appengine.NewContext(r)
+
+    var cardGame CardGame
+
+    _, err := memcache.JSON.Get(c, "lake::nertz", &cardGame)
     if err != nil {
         http.Error(w, err.Error(), 500)
         return
     }
-}
-
-func HandleMove(w http.ResponseWriter, r *http.Request) {
-    c := appengine.NewContext(r)
-    c.Infof("%v", game)
+    memcache.Delete(c, "lake::nertz")
 
     data := new(Move)
     dec := json.NewDecoder(r.Body)
     dec.Decode(&data)
 
+    // Purge the now-invalid cache record (if it exists).
+
     w.Header().Set("Content-Type", "application/json")
     enc := json.NewEncoder(w)
-    enc.Encode( map[string]bool{ "Valid": game.attemptMove( c, data.Card, data.To ) })
+    resp := cardGame.attemptMove(*data)
+    enc.Encode( map[string]bool{ "Valid": resp })
+
+    if resp {
+        // Get or create the Game.
+        board, err := getGame(c, "nertz")
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+
+        err = memcache.JSON.Set(c, &memcache.Item{
+            Key: "lake::nertz", Object: cardGame,
+        })
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+
+        // Send the current players the new list
+        err = board.Send(c, Message{ Lake : cardGame.Lake } )
+        if err != nil {
+            http.Error(w, err.Error(), 500)
+            return
+        }
+    }
+}
+
+func end(w http.ResponseWriter, r *http.Request) {
+    c := appengine.NewContext(r)
+
+    var cardGame CardGame
+
+    _, err := memcache.JSON.Get(c, "lake::nertz", &cardGame)
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+
+    // Purge the now-invalid cache record (if it exists).
+    memcache.Delete(c, "lake::nertz")
+
+    // Get or create the Game.
+    board, err := getGame(c, "nertz")
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
+    //TODO render scoreboard
+    //TODO Send the winners name
+    // Send the current players the new list
+    err = board.Send(c, Message{ Lake : cardGame.Lake } )
+    if err != nil {
+        http.Error(w, err.Error(), 500)
+        return
+    }
 }
