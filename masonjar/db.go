@@ -41,7 +41,7 @@ func (p *Player) Key(c appengine.Context, game *Game) *datastore.Key {
 
 // AddClient puts a Client record to the datastore with the Room as its
 // parent, creates a channel and returns the channel token.
-func (g *Game) GetPlayer(c appengine.Context, id string) (string, error) {
+func (g *Game) makePlayer(c appengine.Context, id string) (string, error) {
     client := &Player{ Status: 0, Name: id }
 
     fn := func(c appengine.Context) error {
@@ -76,46 +76,48 @@ func (g *Game) SetPlayerStatus(c appengine.Context, id string, status int) error
     return err
 }
 
-func (g *Game) RemovePlayer(c appengine.Context, id string) error {
-    client := &Player{ Name: id }
-    err := datastore.Delete(c, client.Key(c, g) )
-    if err != nil {
-        return err
-    }
+func (g *Game) RemovePlayer(c appengine.Context, playerId string) error {
+    player := &Player{ Name: playerId }
+    err := datastore.Delete(c, player.Key(c, g) )
 
     // Purge the now-invalid cache record (if it exists).
     memcache.Delete(c, g.Id)
+    // This deletes the players game.
+    // We can add this functionality back later
+    // where the user could log in again after disconnecting.
+    memcache.Delete(c, player.Name)
 
     return err
 }
 
-func (g *Game) GetPlayers(c appengine.Context) ( []Player, error ) {
+func (g *Game) getPlayers(c appengine.Context) []Player {
     var clients []Player
 
     _, err := memcache.JSON.Get(c, g.Id, &clients)
     if err != nil && err != memcache.ErrCacheMiss {
-        return nil, err
+        c.Errorf("loading players from cache: %v", err)
     }
 
     if err == memcache.ErrCacheMiss {
         q := datastore.NewQuery("Player").Ancestor(g.Key(c))
         _, err = q.GetAll(c, &clients)
         if err != nil {
-            return nil, err
+            c.Errorf("loading players from datastore: %v", err)
         }
         err = memcache.JSON.Set(c, &memcache.Item{
             Key: g.Id, Object: clients,
         })
         if err != nil {
-            return nil, err
+            c.Errorf("loading players into cache: %v", err)
         }
     }
 
-    return clients, nil
+    return clients
 }
 
 type Message struct{
     Text string
+    Scoreboard map[string]int
     Players []Player
     Lake []Card
     Error string
@@ -156,6 +158,8 @@ func (g *Game) Send(c appengine.Context, message Message) error {
 // getGame fetches a Game by name from the datastore,
 // creating it if it doesn't exist already.
 func getGame(c appengine.Context, id string) (*Game, error) {
+    // A game should have status 0 by default
+    // to indicate it hasn't started
     game := &Game{ Status: 0, Id: id }
 
     fn := func(c appengine.Context) error {
@@ -166,22 +170,28 @@ func getGame(c appengine.Context, id string) (*Game, error) {
         return err
     }
 
-    // Purge the now-invalid cache record (if it exists).
-    memcache.Delete(c, "games")
-
     // datastore.RunInTransaction prevents a race condition
     // where two requests might try to make a room that both
-    // to not exist. The failed transaction retries.
+    // find to not exist. The failed transaction retries.
     return game, datastore.RunInTransaction(c, fn, nil)
 }
 
-// readyGame fetches a Game by name from the datastore,
-// and marks the game as in progress
-func readyGame(c appengine.Context, id string) (*Game, error) {
-    game   := &Game{ Status: 1, Id: id }
-    _, err := datastore.Put(c, game.Key(c), game)
+func (g *Game) start(c appengine.Context) error {
+    return g.postStatus(c, 1)
+}
 
-    // Purge the now-invalid cache record (if it exists).
-    memcache.Delete(c, "games")
-    return game, err
+func (g *Game) stop(c appengine.Context) error {
+    return g.postStatus(c, 0)
+}
+
+func (g *Game) postStatus(c appengine.Context, status int ) error {
+    g.Status = status
+    _, err := datastore.Put(c, g.Key(c), g)
+    switch status {
+    case 0:
+        c.Infof("%v is waiting to begin", g.Id)
+    case 1:
+        c.Infof("%v has begun", g.Id)
+    }
+    return err
 }

@@ -34,23 +34,15 @@
 
         <div class="cover-container">
 
-          <div class="masthead clearfix">
-            <div class="inner">
-              <h4 class="masthead-brand"><img src="/img/masonjar.png" alt="Mason Jar"
-              height="33px" width="22px"> - MasonJar</h4>
-              <ul class="nav masthead-nav">
-                <li class="active"><a href="/">Home</a></li>
-                <li><a href="{{html .Logout}}">Logout</a></li>
-              </ul>
-            </div>
-          </div>
-
           <div class="row">
-            <div class="row">
+            <div class="row buttons">
               <p class="lead">
-              <a id="ready" class="btn btn-lg btn-success">Ready</a>
-              <a id="watch" class="btn btn-lg btn-primary">Watch</a>
-              <a id="quit" class="btn btn-lg btn-danger">Quit</a>
+                <a id="masonjar" href="/" class="btn btn-default">MasonJar</a>
+                <a id="ready" class="btn btn-success">Ready</a>
+                <a id="watch" class="btn btn-primary">Watch</a>
+                <a id="save" class="btn btn-info">Save</a>
+                <a id="stop" class="btn btn-warning">Stop</a>
+                <a id="logout" href="{{html .Logout}}" class="btn btn-danger">Logout</a>
               </p>
             </div><!-- /.row -->
             <div id="lake" class="row col-lg-12">
@@ -66,25 +58,22 @@
             </div><!-- /.row -->
             <div id="players-table" class="col-lg-12">
               <h4 class="sidebar-heading">Current Players</h4>
-              <div id="info-table">
+              <div class="info-table">
                 <table class="table table-condensed">
                   <tbody id="players" style="color:black;"></tbody>
                 </table>
               </div><!-- /.info-table -->
             </div><!-- /.players-table -->
-            <div class="row">
-              <a id="save" class="btn btn-lg btn-info">Save</a>
-              <a id="reset" class="btn btn-lg btn-warning">Reset</a>
-            </div><!-- /.row -->
+            <div id="scoreboard-table" class="col-lg-12">
+              <h4 class="sidebar-heading">Last Game</h4>
+              <div class="info-table">
+                <table class="table table-condensed">
+                  <tbody id="scoreboard" style="color:black;"></tbody>
+                </table>
+              </div><!-- /.info-table -->
+            </div><!-- /.scoreboard-table -->
           </div><!-- /.row -->
 
-
-          <div class="mastfoot">
-            <div class="inner">
-              <p>MasonJar is a <a href="http://en.wikipedia.org/wiki/Nertz" target="_blank">nertz</a>
-              game-server, by <a href="https://twitter.com/figurEights" target="_blank">@figurEights</a>.</p>
-            </div>
-          </div>
 
         </div>
 
@@ -148,12 +137,41 @@
               });
             };
 
+            var scoreboardRender = function(scoreboard) {
+              // Clear the table
+              var body = $("#scoreboard tr");
+              body.remove();
+              // Replace with everything new
+              $.each( scoreboard, function( player, score ) {
+                  var activity = "warning";
+                  $("#scoreboard").append(
+                    $('<tr></tr>')
+                      .addClass(activity)
+                      .append( $('<td></td>').text( player ) )
+                      .append( $('<td></td>').text( score ).css("color", "black"))
+                    );
+              });
+            };
+
             var chan = new goog.appengine.Channel(token);
             var sock = chan.open();
             sock.onmessage = function(msg) {
               var message = JSON.parse(msg.data);
-              if ( message.Players ) { playersRender(message.Players) };
-              if ( message.Lake ) { lakeRender( message.Lake ) };
+              console.log( message );
+              if ( message.Players ) {
+                playersRender(message.Players);
+              };
+              if ( message.Lake ) {
+                changePageStateTo( 'playing' );
+                lakeRender( message.Lake );
+              };
+              if ( message.Scoreboard ) {
+                $( '#lake div' ).remove();
+                reset();
+                changePageStateTo( 'waiting' );
+                $.ajax('/status', { data: {status: 0 } } );
+                scoreboardRender(message.Scoreboard);
+              };
             }
 
             var lakeRender = function(cards) {
@@ -215,7 +233,15 @@
                                       break;
                                     };
                                   };
+                                  $.ajax({
+                                    type: "POST",
+                                    url: '/save',
+                                    data: JSON.stringify(board),
+                                  });
                                   board.render();
+                                  if ( board.isNertz() ) {
+                                    $.ajax({ type: "POST", url: '/end', });
+                                  };
                               };
                               $.ajax({
                                 url: '/move',
@@ -230,26 +256,29 @@
                 });
             };
 
+            var disableButton = function( elm ){
+              elm.attr( "disabled", "disabled");
+            };
+            var enableButton = function( elm ){
+              elm.removeAttr( "disabled" );
+            };
+
             var changePageStateTo = function( state ){
               switch( state ){
                 case 'waiting':
-                  $("#save").hide();
-                  $("#reset").hide();
+                  enableButton( $("#ready") );
+                  enableButton( $("#watch") );
+                  disableButton( $("#save") );
+                  disableButton( $("#stop") );
+                  $("#boardGame").show();
                   break;
                 case 'playing':
-                  generate();
-                  $.ajax('/status', { data: {status: 1 } } );
-                  $("#save").show();
-                  $("#reset").show();
-                  $("#quit").hide();
-                  $("#watch").hide();
-                  $("#ready").hide();
+                  enableButton(  $("#save") );
+                  enableButton(  $("#stop") );
+                  disableButton( $("#ready") );
+                  disableButton( $("#watch") );
                   break;
                 case 'watching':
-                  $("#quit").hide();
-                  $("#watch").hide();
-                  $("#ready").hide();
-                  $("#boardGame").hide();
                   $.ajax({
                     url: '/lake',
                     dataType: 'json',
@@ -257,32 +286,59 @@
                       lakeRender(data);
                     },
                   });
-                  break;
-                case 'finished':
-                  $("#save").hide();
-                  $("#reset").hide();
-                  $("#quit").show();
-                  $("#watch").show();
-                  $("#ready").show();
+                  disableButton( $("#ready") );
+                  disableButton( $("#watch") );
+                  enableButton(  $("#stop") );
+                  $("#boardGame").hide();
                   break;
               }
             }
 
-            changePageStateTo( 'waiting' );
+
+            var isEnabled = function( elm ) {
+              return elm.attr( "disabled" ) != "disabled";
+            };
+
+            var getGameProgress = function() {
+              return $.ajax({ async: false, url: '/check', dataType: 'json',
+                  }).responseJSON;
+            };
+
+            var game = getGameProgress();
+            if ( game.State === 0 ) {
+              generate();
+              changePageStateTo( 'waiting' );
+            } else {
+              changePageStateTo( 'watching' );
+            };
 
             $("#ready").click( function(){
-                var response = $.ajax({ async: false, url: '/begin', dataType: 'json', });
-                if (response.responseJSON.Valid) {
-                  changePageStateTo( 'playing' );
-                }
-            });
-            $("#quit" ).click( function(){
-                reset();
-                $.ajax('/status', { data: {status: 0 } } );
+                if ( isEnabled( $("#ready") ) ) {
+                  $.ajax('/status', { data: {status: 1 } } );
+                  var data = getGameProgress();
+                  if ( data.State === 0 ) {
+                    var response = $.ajax({ async: false, url: '/begin', dataType: 'json', });
+                    if (response.responseJSON.Valid) {
+                      generate();
+                      changePageStateTo( 'playing' );
+                    };
+                  } else {
+                    $.ajax({
+                      url: '/lake',
+                      dataType: 'json',
+                      success: function(data) {
+                      if (data) { lakeRender(data) };
+                      },
+                    });
+                    changePageStateTo( 'playing' );
+                  };
+                };
             });
             $("#watch").click( function(){
-                $.ajax('/status', { data: {status: 2 } } );
-                changePageStateTo( 'watching' );
+                if ( isEnabled( $("#watch") ) ) {
+                  $.ajax('/status', { data: {status: 2 } } );
+                  changePageStateTo( 'watching' );
+                };
             });
 
             $("#save").click( function(){
@@ -293,8 +349,8 @@
               });
             });
 
-            $("#reset").click( function(){
-                reset();
+            $("#stop").click( function(){
+                $.ajax({ type: "POST", url: '/end', });
             });
         });
     </script>

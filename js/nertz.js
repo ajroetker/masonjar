@@ -92,6 +92,7 @@ function lastElement( array ){
 
 function Board(object) {
     this.nertz  = object.Nertz;
+    this.isNertz = function() { return ( this.nertz.length === 0 ) };
     this.renderNertz = function() {
         var nertzPileLength = this.nertz.length;
         $.each( this.nertz, function( index, card ) {
@@ -172,6 +173,9 @@ function Board(object) {
                                         break;
                                 }
                                 board.render();
+                                if ( board.isNertz() ) {
+                                    $.ajax({ type: "POST", url: '/end', });
+                                };
                             }
                         });
                     };

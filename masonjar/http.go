@@ -15,8 +15,9 @@ type tmplData struct{
 func init() {
     // Register our handlers with the http package.
     http.HandleFunc("/", start)
-    http.HandleFunc("/status", changeStatus )
+    http.HandleFunc("/status", status )
 }
+
 
 // HTML template.
 var tmpl = template.Must(template.ParseFiles("tmpl/index.html"))
@@ -26,6 +27,8 @@ var tmpl = template.Must(template.ParseFiles("tmpl/index.html"))
 // creates a new Client, and writes the HTML response.
 func start(w http.ResponseWriter, r *http.Request) {
     c := appengine.NewContext(r)
+    u := user.Current(c)
+    playerId := u.String()
 
     // Get or create the Game.
     game, err := getGame(c, "nertz")
@@ -35,7 +38,7 @@ func start(w http.ResponseWriter, r *http.Request) {
     }
 
     // Create a new Client, getting the channel token.
-    token, err := game.GetPlayer(c, user.Current(c).String())
+    token, err := game.makePlayer(c, playerId)
     if err != nil {
         http.Error(w, err.Error(), 500)
         return
@@ -47,20 +50,6 @@ func start(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Create a list of players to display
-    players, err := game.GetPlayers(c)
-    if err != nil {
-        http.Error(w, err.Error(), 500)
-        return
-    }
-
-    // Send the current players the new list
-    err = game.Send(c, Message{ Players : players } )
-    if err != nil {
-        http.Error(w, err.Error(), 500)
-        return
-    }
-
     // Render the HTML template
     data := tmplData{ url, game.Id, token, }
     err = tmpl.Execute(w, data)
@@ -68,15 +57,16 @@ func start(w http.ResponseWriter, r *http.Request) {
         http.Error(w, err.Error(), 500)
         return
     }
-
 }
 
-func changeStatus(w http.ResponseWriter, r *http.Request) {
+func status(w http.ResponseWriter, r *http.Request) {
     c := appengine.NewContext(r)
     u := user.Current(c)
+    playerId := u.String()
+    gameId := "nertz"
 
     // Get or create the Game.
-    game, err := getGame(c, "nertz")
+    game, err := getGame(c, gameId)
     if err != nil {
         http.Error(w, err.Error(), 500)
         return
@@ -93,21 +83,17 @@ func changeStatus(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    err = game.SetPlayerStatus(c, u.String(), status)
+    err = game.SetPlayerStatus(c, playerId, status)
     if err != nil {
         http.Error(w, err.Error(), 500)
         return
     }
 
-    players, err :=  game.GetPlayers(c)
-    if err != nil {
-        http.Error(w, err.Error(), 500)
-        return
-    }
+    players :=  game.getPlayers(c)
+
     // Send the current players the new list
     err = game.Send(c, Message{ Players : players } )
     if err != nil {
-        http.Error(w, err.Error(), 500)
-        return
+        c.Errorf( "sending message to %v: %v", gameId, err )
     }
 }

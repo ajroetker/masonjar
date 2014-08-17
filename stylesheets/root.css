@@ -6,6 +6,9 @@ html {
     font-family: sans-serif;
     height: 200px;
 }
+.buttons {
+    padding: 1%;
+}
 #cover-heading {
     font-size: 150%;
     color: #104;
@@ -22,10 +25,6 @@ html {
 }
 #log {
     height: 300px;
-    overflow: scroll;
-}
-#info-table {
-    height: 150px;
     overflow: scroll;
 }
 .card {
@@ -52,9 +51,15 @@ html {
     height: 200px;
     padding: 25px;
 }
-#players-table {
+.info-table {
+    height: 93px;
     overflow: scroll;
-    height: 300px;
+}
+#players-table {
+    height: 112px;
+}
+#scoreboard-table {
+    height: 112px;
 }
 .players {
     vertical-align: middle;

@@ -16,6 +16,15 @@ handlers:
 - url: /img
   static_dir: img
 
+- url: /_ah/channel/connected/
+  script: _go_app
+
+- url: /_ah/channel/disconnected/
+  script: _go_app
+
 - url: /.*
   script: _go_app
   login: required
+
+inbound_services:
+    - channel_presence
