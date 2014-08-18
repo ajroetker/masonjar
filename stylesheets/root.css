@@ -7,7 +7,10 @@ html {
     height: 200px;
 }
 .buttons {
-    padding: 1%;
+    padding: 1% 7%;
+}
+.buttons div div button {
+    font-weight: bold;
 }
 #cover-heading {
     font-size: 150%;
@@ -29,27 +32,24 @@ html {
 }
 .card {
     position: absolute;
-    left: 10%;
-    width: 80%;
-    height: auto;
+    top: 0;
+    left: 0;
+    width: 100%;
+    min-width: 100%;
 }
+
 .pile {
-    position: relative;
-    float: left;
-    padding: 0.1%;
-    width: 12.5%;
-    height: 100%;
+    position:relative;
+    padding: 0%;
+}
+.pile-inner {
+    position:absolute;
 }
 #lake {
-    height: 200px;
-    padding: 40px;
-}
-#boardGame .pile {
-    left: 25px;
+    padding: 1% 7%;
 }
 #boardGame {
-    height: 200px;
-    padding: 25px;
+    padding: 1% 7%;
 }
 .info-table {
     height: 93px;

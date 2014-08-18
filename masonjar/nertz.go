@@ -20,6 +20,7 @@ type CardGame struct {
     Lake []Card
     // Scores is a map from a players name to their score
     Scores map[string]int
+    Penalties map[string]int
 }
 
 func (game *Game) purge( c appengine.Context ) error {
@@ -69,21 +70,36 @@ func score(w http.ResponseWriter, r *http.Request) {
     lakeId := fmt.Sprintf("lake::%v", game.Id)
     _, err = memcache.JSON.Get(c, lakeId, &cardGame)
     if err != nil {
+        c.Errorf("getting %v: %v", lakeId, err )
+        purgeErr := game.purge( c )
+        if purgeErr != nil {
+            c.Errorf( "purgin %v: %v", game.Id, purgeErr )
+        }
         http.Error(w, err.Error(), 500)
         return
     }
-    cardGame.Scores[ playerId ] -= remains * 2
+    cardGame.Penalties[ playerId ] = remains * 2
     err = memcache.JSON.Set(c, &memcache.Item{
         Key: cardGame.Id, Object: cardGame,
     })
     if err != nil {
+        c.Errorf("setting %v: %v", lakeId, err )
         http.Error(w, err.Error(), 500)
         return
     }
 
-    err = game.Send(c, Message{ Scoreboard: cardGame.Scores } )
-    if err != nil {
-        c.Errorf( "sending message to %v: %v", game.Id, err )
+    if ( len( cardGame.Penalties ) == len( cardGame.Scores ) ) {
+        for player, _ := range cardGame.Scores {
+            cardGame.Scores[player] -= cardGame.Penalties[player]
+        }
+        err = game.Send(c, Message{ Scoreboard: cardGame.Scores } )
+        if err != nil {
+            c.Errorf( "sending message to %v: %v", game.Id, err )
+        }
+        err = game.purge( c )
+        if err != nil {
+            c.Errorf( "purgin %v: %v", game.Id, err )
+        }
     }
 
 }
@@ -108,6 +124,7 @@ func countReadyPlayers(them []Player) int {
 
 func (cg *CardGame) init(id string, them []Player) {
     cg.Id = id
+    cg.Penalties = make(map[string]int)
     cg.Scores = make(map[string]int)
     for _, player := range them {
         if player.Status != 2 {
@@ -239,7 +256,7 @@ func move(w http.ResponseWriter, r *http.Request) {
         http.Error(w, err.Error(), 500)
         return
     }
-    memcache.Delete(c, "lake::nertz")
+    memcache.Delete(c, lakeId)
 
     data := new(Move)
     dec := json.NewDecoder(r.Body)
@@ -276,7 +293,6 @@ func move(w http.ResponseWriter, r *http.Request) {
 
 func end(w http.ResponseWriter, r *http.Request) {
     c := appengine.NewContext(r)
-    u := user.Current(c)
 
     var cardGame CardGame
     gameId := "nertz"
@@ -288,7 +304,10 @@ func end(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    memcacheError := err
+    if err == memcache.ErrCacheMiss {
+        c.Errorf("no game to end")
+        return
+    }
 
     // Get or create the Game.
     game, err := getGame(c, gameId)
@@ -296,21 +315,7 @@ func end(w http.ResponseWriter, r *http.Request) {
         http.Error(w, err.Error(), 500)
         return
     }
-    err = game.purge( c )
-    if err != nil {
-        http.Error(w, err.Error(), 500)
-        return
-    }
-
-    if memcacheError == memcache.ErrCacheMiss {
-        c.Errorf("no game to end")
-        return
-    }
-
-
-    err = game.Send(c, Message{ Text       : u.String(),
-                                Scoreboard : cardGame.Scores ,
-                                Lake       : cardGame.Lake } )
+    err = game.Send(c, Message{ Text : "masonJar.gameOver", } )
     if err != nil {
         c.Errorf( "sending message to %v: %v", game.Id, err )
     }

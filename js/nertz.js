@@ -49,6 +49,18 @@ var idParserMap = {
     'c' : 'clubs',
 }
 
+function scalePile() {
+    var piles = $( '.pile' ).get();
+    $.each( piles, function( pileNum, pile ){
+        if ( $( pile ).children().length != 0 ) {
+            var firstCardTop = parseInt($( pile ).children().first().position().top);
+            var lastCardTop = parseInt($( pile ).children().last().position().top);
+            var lastCardBottom = lastCardTop + height( $( '.card' ) );
+            $( pile ).height( firstCardTop + lastCardBottom );
+        };
+    });
+}
+
 function cardifyId( id ){
     var suitStr = idParserMap[ id[0] ];
     //Doesn't quite work
@@ -122,6 +134,7 @@ function Board(object) {
     this.stream = object.Stream;
     this.river  = object.River;
     this.renderRiver = function() {
+
         var board = this;
         $.each( this.river, function( jndex, cards ) {
             if (cards.length === 0) {
@@ -132,7 +145,7 @@ function Board(object) {
                 if ( card.Value ) {
                     img = cardImg( suits[card.Suit], values[card.Value] );
                     $( '#river' + jndex ).append(img);
-                    var topPos = index * height( $( '.card' ) ) * 0.25 ;
+                    var topPos = index * height( $( '.card' ) ) * 0.27 ;
                     if ( index === 0 ) {
                       topPos = padding( $('.pile') );
                     };
@@ -189,12 +202,12 @@ function Board(object) {
                             var slice = wholePile.slice(index, wholePile.length);
                             var h = ( padding( $('.pile') ) * 2 )
                                     + height( $( '.card' ) )
-                                    + ( ( slice.length - 1 ) * height( $( '.card' ) ) * 0.25 );
+                                    + ( ( slice.length - 1 ) * height( $( '.card' ) ) * 0.27 );
                             var container =
                                 $('<div/>').attr('id', 'draggingContainer')
                                            .width( w ).height( h );
                             $.each( slice, function( kndex, card ) {
-                                var topPos = kndex * height( $( '.card' ) ) * 0.25 ;
+                                var topPos = kndex * height( $( '.card' ) ) * 0.27 ;
                                 if ( kndex === 0 ) {
                                     topPos = padding( $('.pile') );
                                 };
@@ -217,7 +230,6 @@ function Board(object) {
     this.show   = object.Show;
     this.render = function() {
         $('#boardGame div img').remove();
-        var topPadding = padding( $('.pile') );
         this.renderRiver();
         this.renderNertz();
         var streamPileLength = this.stream.length;
@@ -227,7 +239,11 @@ function Board(object) {
                 if ( card.Value ) {
                     img = cardImgBack();
                     $('#stream').append(img);
-                    img.css( 'top',  topPadding + index + "%" )
+                    var topPos = index * height( $( '.card' ) ) * 0.03 ;
+                    if ( index === 0 ) {
+                      topPos = padding( $('.pile') );
+                    };
+                    img.css( 'top',  topPos )
                        .data('pile', 'stream');
                     if ( index === streamPileLength - 1 ) {
                         img.on( "click", function() {
@@ -252,7 +268,11 @@ function Board(object) {
             if ( card.Value ) {
                 img = cardImg( suits[card.Suit], values[card.Value] )
                 $('#show').append(img);
-                img.css( 'top',  topPadding + index + "%" )
+                var topPos = index * height( $( '.card' ) ) * 0.03 ;
+                if ( index === 0 ) {
+                  topPos = padding( $('.pile') );
+                };
+                img.css( 'top',  topPos )
                    .data('pile', 'show');
                 img.draggable({
                     zIndex: 100,
@@ -260,7 +280,7 @@ function Board(object) {
                 });
             }
         });
-
+    scalePile();
     }
 }
 
